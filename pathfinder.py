@@ -132,4 +132,17 @@ class PathFinder:
 
                 count += 1  # Increment counter
                 heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list
+        
+    @staticmethod
+    def displayPathOnGrid(grid, path):
+        for i in range(len(grid)):
+            for j in range(len(grid[0])):
+                if (i, j) in path:
+                    print(' X', end='')
+                else:
+                    print(' -', end='')
+            print()  # Newline after each row    
+
+
+
 
