@@ -157,7 +157,7 @@ class PathFinder:
                     print(' -', end='')
             print()  # Newline after each row    
 
-
+    
 
 
 pF = PathFinder() 

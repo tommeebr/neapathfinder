@@ -1,6 +1,7 @@
 from node import Node
 import math
 import heapq
+import numpy as np
 
 class PathFinder:
     @staticmethod
@@ -141,8 +142,14 @@ class PathFinder:
                     print(' X', end='')
                 else:
                     print(' -', end='')
-            print()  # Newline after each row    
+            print()  # Newline after each row  
+
+    
+        
 
 
+#testing
 
+# pF = PathFinder()
 
+# print(pF.generateGrid((0,0),(7,7),8,8))
