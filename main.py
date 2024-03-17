@@ -1,5 +1,6 @@
 from node import Node
-from pathfinder import PathFinder, GridPathFinder, MazePathFinder
+from gridpathfinder import GridPathFinder
+from mazepathfinder import MazePathFinder
 
 # pF = PathFinder() 
 
