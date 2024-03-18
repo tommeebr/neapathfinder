@@ -8,7 +8,7 @@ class PathFinder:
     def __init__(self, *args):
         if len(args) == 1 and isinstance(args[0], str):
             self.loadFile(args[0])
-        elif len(args) == 4 and all(isinstance(arg, int) for arg in args):
+        elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
             self.start, self.end, height, width = args
             self.generateStructure(self.start,self.end,height, width)
         else:

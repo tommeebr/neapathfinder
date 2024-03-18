@@ -1,5 +1,6 @@
 from pathfinder import PathFinder
 from node import Node
+import numpy as np
 
 class GridPathFinder(PathFinder):
     def getNeighbour(self, node, grid):
@@ -14,5 +15,7 @@ class GridPathFinder(PathFinder):
         return neighbors
 
     def generateStructure(self, start, end, height, width):
-        #* I need to implement this method
-        pass
+        self.structure = np.random.randint(2,size=(height, width))
+        self.structure[start[0], start[1]] = 0
+        self.structure[end[0], end[1]] = 0
+        
