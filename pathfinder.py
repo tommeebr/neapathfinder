@@ -9,15 +9,19 @@ class PathFinder:
         if len(args) == 1 and isinstance(args[0], str):
             self.loadFile(args[0])
         elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
-            self.start, self.end, height, width = args
-            self.generateStructure(self.start,self.end,height, width)
+            self.start, self.end, self.height, self.width = args
+            self.generateStructure(self.start,self.end,self.height, self.width)
         else:
             raise ValueError("Must provide either a file path or height and width")
         
     def manhattanDist(self, a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    
+    def displayStructure(self, grid):
+        for row in grid:
+            print(' '.join(str(cell) for cell in row))
 
-    def displayPathOnGrid(self, grid, path):
+    def displayPathOnStructure(self, grid, path):
         for i in range(len(grid)):
             for j in range(len(grid[0])):
                 if (i, j) in path:
@@ -25,6 +29,16 @@ class PathFinder:
                 else:
                     print(' -', end='')
             print()  # Newline after each row
+            
+    def runPathFinder(self):
+        path = self.aStar(self.start, self.end, self.structure)
+        while path is None:
+            self.displayStructure(self.structure)
+            print("No path found")
+            self.generateStructure(self.start,self.end,self.height, self.width)
+            path = self.aStar(self.start, self.end, self.structure)
+        self.displayStructure(self.structure)
+        self.displayPathOnStructure(self.structure, path)
 
     def aStar(self, start, end, grid):
         startNode = Node(None, start)

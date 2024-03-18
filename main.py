@@ -37,5 +37,4 @@ from mazepathfinder import MazePathFinder
 # pF.displayPathOnGrid(maze,path)
 
 gridPF = GridPathFinder((0,0),(9,9),10,10)
-path = gridPF.aStar(gridPF.start, gridPF.end, gridPF.structure)
-gridPF.displayPathOnGrid(gridPF.structure, path)
+path = gridPF.runPathFinder()
