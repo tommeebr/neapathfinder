@@ -1,5 +1,7 @@
 import heapq
 import math
+import random
+import numpy as np
 
 class Node:
     def __init__(self, parent=None, pos=None):
@@ -12,18 +14,94 @@ class Node:
     def __eq__(self, other):
         return self.pos == other.pos
 
-from node import Node
-import math
-import heapq
-
 class PathFinder:
-    @staticmethod
-    def manhattanDist(a, b):
+    def __init__(self, *args):
+        self.path = []
+        if len(args) == 1 and isinstance(args[0], str):
+            self.loadFile(args[0])
+        elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
+            self.start, self.end, self.height, self.width = args
+            self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
+            self.structure = self.structInstance.generateMaze()
+        else:
+            raise ValueError("Must provide either a file path or height and width")
+        
+    def manhattanDist(self, a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    
+    def displayStructure(self):
+        for row in self.structure:
+            print(' '.join(str(cell) for cell in row))
 
+    def displayPathOnStructure(self):
+        for i in range(len(self.structure)):
+            for j in range(len(self.structure[0])):
+                if (i, j) in self.path:
+                    print(' X', end='')
+                else:
+                    print(' -', end='')
+            print()  # Newline after each row
 
-    @staticmethod
-    def getGridNeighbour(node, grid):
+    def aStar(self):
+        startNode = Node(None, self.start)
+        endNode = Node(None, self.end)
+
+        openList = []
+        closedList = []
+
+        count = 0  # Counter for tie-breaking
+        heapq.heappush(openList, (startNode.f, count, startNode))  # Add the start node
+
+        while len(openList) > 0:
+            currentNode = heapq.heappop(openList)[2]  # Node with the lowest f values
+            closedList.append(currentNode)
+
+            if currentNode == endNode:  # Found the goal
+                path = []
+                while currentNode is not None:
+                    path.append(currentNode.pos)
+                    currentNode = currentNode.parent
+                self.path = path[::-1]  # Reverse the path
+
+                # Calculate the Manhattan distances for the final path
+                manhattanDistTotal = sum(self.manhattanDist(path[i], path[i+1]) for i in range(len(path) - 1))
+
+                print("Total Manhattan distance for path:", manhattanDistTotal)
+                return
+
+            children = self.getNeighbour(currentNode, self.structure)
+            for child in children:
+                if child in closedList:
+                    continue  # Child is already in the closed list
+                child.g = currentNode.g + 1
+                child.h = self.manhattanDist(child.pos, endNode.pos)
+                child.f = child.g + child.h
+
+                if any(openNode for openNode in openList if child == openNode[2] and child.g > openNode[2].g):
+                    continue  # Child is already in the open list and has a higher g value
+
+                count += 1  # Increment counter
+                heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list          
+
+    def getNeighbour(self, node, grid):
+        raise NotImplementedError("This method should be overridden in a subclass")  
+
+    def findPath(self):
+        raise NotImplementedError("This method should be overridden in a subclass")
+
+    def loadFile(self, filePath):
+        with open(filePath, 'r') as file:
+            lines = file.readlines()
+
+        # Parse start and end positions
+        self.start = tuple(map(int, lines[0].strip().split(',')))
+        self.end = tuple(map(int, lines[1].strip().split(',')))
+
+        # Construct the 2D array
+        self.structure = np.array([list(map(int, line.strip().split(','))) for line in lines[2:]])
+
+class GridPathFinder(PathFinder):
+    def getNeighbour(self, node, grid):
         neighbors = []
         for newPos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
             nodePos = (node.pos[0] + newPos[0], node.pos[1] + newPos[1])
@@ -34,52 +112,8 @@ class PathFinder:
             neighbors.append(Node(node, nodePos))
         return neighbors
 
-    @staticmethod
-    def aStarGrid(start, end, grid):
-        startNode = Node(None, start)
-        endNode = Node(None, end)
-
-        openList = []
-        closedList = []
-
-        count = 0  # Counter for tie-breaking
-        heapq.heappush(openList, (startNode.f, count, startNode))  # Add the start node
-
-        while len(openList) > 0:
-            currentNode = heapq.heappop(openList)[2]  # Node with the lowest f value
-            closedList.append(currentNode)
-
-            if currentNode == endNode:  # Found the goal
-                path = []
-                while currentNode is not None:
-                    path.append(currentNode.pos)
-                    currentNode = currentNode.parent
-                path = path[::-1]  # Reverse the path
-
-                # Calculate the Manhattan distances for the final path
-                manhattanDistTotal = sum(PathFinder.manhattanDist(path[i], path[i+1]) for i in range(len(path) - 1))
-
-                print("Total Manhattan distance for path:", manhattanDistTotal)
-
-
-                return path
-
-            children = PathFinder.getGridNeighbour(currentNode, grid)
-            for child in children:
-                if child in closedList:
-                    continue  # Child is already in the closed list
-                child.g = currentNode.g + 1
-                child.h = PathFinder.manhattanDist(child.pos, endNode.pos)
-                child.f = child.g + child.h
-
-                if any(openNode for openNode in openList if child == openNode[2] and child.g > openNode[2].g):
-                    continue  # Child is already in the open list and has a higher g value
-
-                count += 1  # Increment counter
-                heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list
-        
-    @staticmethod
-    def getMazeNeighbour(node, maze):
+class MazePathFinder(PathFinder):
+    def getNeighbour(self, node, maze):
         neighbors = []
         for newPos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
             nodePos = (node.pos[0] + newPos[0], node.pos[1] + newPos[1])
@@ -102,94 +136,37 @@ class PathFinder:
 
             neighbors.append(Node(node, nodePos))
         return neighbors
-    
 
-    @staticmethod
-    def aStarMaze(start, end, maze):
-        startNode = Node(None, start)
-        endNode = Node(None, end)
+    def generateStructure(self, start, end, height, width):
+        #* I need to implement this method
+        pass
 
-        openList = []
-        closedList = []
+class StructureGenerator:
+    def __init__(self, start, end, width,height):
+        self.start = start
+        self.end = end
+        self.width = width
+        self.height = height
+        self.maze = np.ones((height, width), dtype=np.int8)
+        self.directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, left, down, up
 
-        count = 0  # Counter for tie-breaking
-        heapq.heappush(openList, (startNode.f, count, startNode))  # Add the start node
+    def generateMaze(self):
+        self._dfs(self.start[0], self.start[1])
+        self.maze[self.start[1]][self.start[0]] = 0  # Ensure start is traversable
+        self.maze[self.end[1]][self.end[0]] = 0  # Ensure end is traversable
+        return self.maze.tolist()  # Convert back to list for compatibility with PathFinder
 
-        while len(openList) > 0:
-            currentNode = heapq.heappop(openList)[2]  # Node with the lowest f value
-            closedList.append(currentNode)
-
-            if currentNode == endNode:  # Found the goal
-                path = []
-                while currentNode is not None:
-                    path.append(currentNode.pos)
-                    currentNode = currentNode.parent
-                path = path[::-1]  # Reverse the path
-
-                # Calculate the Manhattan distances for the final path
-                manhattanDistTotal = sum(PathFinder.manhattanDist(path[i], path[i+1]) for i in range(len(path) - 1))
-
-                print("Total Manhattan distance for path:", manhattanDistTotal)
-
-                return path
-
-            children = PathFinder.getMazeNeighbour(currentNode, maze)
-            for child in children:
-                if child in closedList:
-                    continue  # Child is already in the closed list
-                child.g = currentNode.g + 1
-                child.h = PathFinder.manhattanDist(child.pos, endNode.pos)
-                child.f = child.g + child.h
-
-                if any(openNode for openNode in openList if child == openNode[2] and child.g > openNode[2].g):
-                    continue  # Child is already in the open list and has a higher g value
-
-                count += 1  # Increment counter
-                heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list
-        
-    @staticmethod
-    def displayPathOnGrid(grid, path):
-        for i in range(len(grid)):
-            for j in range(len(grid[0])):
-                if (i, j) in path:
-                    print(' X', end='')
-                else:
-                    print(' -', end='')
-            print()  # Newline after each row    
-
-    
+    def _dfs(self, x, y):
+        self.maze[y][x] = 0
+        np.random.shuffle(self.directions)
+        for dx, dy in self.directions:
+            nextX, nextY = x + 2*dx, y + 2*dy
+            if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.maze[nextY][nextX] == 1:
+                self.maze[nextY-dy][nextX-dx] = 0
+                self._dfs(nextX, nextY)
 
 
-pF = PathFinder() 
-
-grid = [
-    [0, 0, 0, 0, 1, 0, 0, 0, 0],
-    [1, 1, 0, 1, 0, 0, 0, 1, 0],
-    [0, 0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 1, 1, 1, 1, 1, 1, 0, 1],
-    [0, 0, 0, 0, 0, 1 ,1 ,0 ,0]
-]
-start = (0, 0)
-end = (4, 8)
-path = pF.aStarGrid(start, end, grid)
-print(path)  # Output: [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (4, 1), (4, 2), (4, 3), (4, 4)]
-pF.displayPathOnGrid(grid,path)
-
-maze = [
-    [3,2,3,2,1,2,2,2,3,2],
-    [1,1,0,2,1,2,2,1,1,1],
-    [1,2,1,1,2,2,2,0,2,0],
-    [3,1,1,2,2,3,2,2,3,0],
-    [1,0,3,2,1,0,3,0,3,2],
-    [3,0,1,1,2,2,1,2,1,1],
-    [1,3,1,3,0,1,2,1,1,2],
-    [1,0,1,3,2,1,1,0,3,0],
-    [3,0,1,1,1,2,2,2,0,1],
-    [1,2,1,0,1,3,2,2,2,0]
-]
-
-start = (0,4)
-end = (9,5)
-path = PathFinder.aStarMaze(start, end, maze)
-print(path)
-pF.displayPathOnGrid(maze,path)
+gridPF = GridPathFinder((0,0), (20,20), 21, 21)
+gridPF.aStar()
+gridPF.displayStructure()
+gridPF.displayPathOnStructure()

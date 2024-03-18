@@ -25,7 +25,3 @@ class MazePathFinder(PathFinder):
 
             neighbors.append(Node(node, nodePos))
         return neighbors
-
-    def generateStructure(self, start, end, height, width):
-        #* I need to implement this method
-        pass

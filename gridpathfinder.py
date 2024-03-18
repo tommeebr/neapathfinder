@@ -14,8 +14,5 @@ class GridPathFinder(PathFinder):
             neighbors.append(Node(node, nodePos))
         return neighbors
 
-    def generateStructure(self, start, end, height, width):
-        self.structure = np.random.randint(2,size=(height, width))
-        self.structure[start[0], start[1]] = 0
-        self.structure[end[0], end[1]] = 0
+    
         
