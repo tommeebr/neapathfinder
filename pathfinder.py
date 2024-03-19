@@ -80,15 +80,29 @@ class PathFinder:
         raise NotImplementedError("This method should be overridden in a subclass")
 
     def loadFile(self, filePath):
-        with open(filePath, 'r') as file:
-            lines = file.readlines()
+        try:
+            with open(filePath, 'r') as file:
+                lines = file.readlines()
+        except FileNotFoundError:
+            print(f"File {filePath} not found.")
+            return
+        except PermissionError:
+            print(f"Permission denied for file {filePath}.")
+            return
 
-        # Parse start and end positions
-        self.start = tuple(map(int, lines[0].strip().split(',')))
-        self.end = tuple(map(int, lines[1].strip().split(',')))
+        try:
+            # Parse start and end positions
+            self.start = tuple(map(int, lines[0].strip().split(',')))
+            self.end = tuple(map(int, lines[1].strip().split(',')))
 
-        # Construct the 2D array
-        self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
+            # Parse structure
+            self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
+
+            # Infer height and width from structure
+            self.height = len(self.structure)
+            self.width = len(self.structure[0]) if self.structure else 0
+        except (IndexError, ValueError):
+            print(f"Error parsing file {filePath}. Check that it's in the correct format.")
 
 
 
