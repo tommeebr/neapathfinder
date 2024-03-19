@@ -22,7 +22,7 @@ class PathFinder:
             if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
                 raise ValueError("Start and end positions must be non-negative")
             self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-            self.structure = self.structInstance.generateMaze()
+            self.structure = self.structInstance.generateGrid()
         else:
             raise ValueError("Must provide either a file path or height and width")
         

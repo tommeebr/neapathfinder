@@ -15,26 +15,25 @@ class Node:
         return self.pos == other.pos
 
 class PathFinder:
-    def __init__(self, *args):
+    def __init__(self, start, end, height, width, file_path=None):
         self.path = []
-        if len(args) == 1 and isinstance(args[0], str):
-            self.loadFile(args[0])
-        elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
-            self.start, self.end, self.height, self.width = args
-            if self.width % 2 == 0:
-                self.width -= 1
-                self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
-            if self.height % 2 == 0:
-                self.height -= 1
-                self.end = (self.end[0], self.end[1] - 1) # ^^^
-            if self.end[0] >= self.width or self.end[1] >= self.height:
-                raise ValueError("End position must be within the bounds of the maze")
-            if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
-                raise ValueError("Start and end positions must be non-negative")
-            self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-            self.structure, self.width, self.height, self.end = self.structInstance.generateMaze()  # Update width, height and end
+        if file_path:
+            self.loadFile(file_path)
         else:
-            raise ValueError("Must provide either a file path or height and width")
+            self.start, self.end, self.height, self.width = start, end, height, width
+            self.validateInputs()
+
+    def validateInputs(self):
+        if self.width % 2 == 0:
+            self.width -= 1
+            self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
+        if self.height % 2 == 0:
+            self.height -= 1
+            self.end = (self.end[0], self.end[1] - 1) # ^^^
+        if self.end[0] >= self.width or self.end[1] >= self.height:
+            raise ValueError("End position must be within the bounds of the maze")
+        if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
+            raise ValueError("Start and end positions must be non-negative")
         
     def manhattanDist(self, a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -51,6 +50,12 @@ class PathFinder:
                 else:
                     print(' -', end='')
             print()  # Newline after each row
+    
+    def solvableStructure(self):
+        while True:
+            self.structure, self.width, self.height, self.end = self.generateStructure()  # Update width, height and end
+            if self.aStar():
+                break
 
     def aStar(self):
         startNode = Node(None, (self.start[1], self.start[0]))  
@@ -93,6 +98,7 @@ class PathFinder:
                 count += 1  # Increment counter
                 heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list          
         return False
+
     def getNeighbour(self, node, grid):
         raise NotImplementedError("This method should be overridden in a subclass")  
 
@@ -111,6 +117,11 @@ class PathFinder:
         self.structure = np.array([list(map(int, line.strip().split(','))) for line in lines[2:]])
 
 class GridPathFinder(PathFinder):
+    def __init__(self, start, end, height, width, file_path=None):
+        super().__init__(start, end, height, width, file_path)
+        self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
+        self.structure, self.width, self.height, self.end = self.structInstance.generateGrid()  # Update width, height and end
+
     def getNeighbour(self, node, grid):
         neighbors = []
         for newPos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
@@ -121,6 +132,9 @@ class GridPathFinder(PathFinder):
                 continue  # Node is not walkable
             neighbors.append(Node(node, nodePos))
         return neighbors
+    
+    def generateStructure(self):
+        return self.structInstance.generateGrid()
 
 class MazePathFinder(PathFinder):
     def getNeighbour(self, node, maze):
@@ -146,11 +160,10 @@ class MazePathFinder(PathFinder):
 
             neighbors.append(Node(node, nodePos))
         return neighbors
+    
+    def generateStructure(self):
+        return self.structInstance.generateMaze()
 
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
 class StructureGenerator:
     def __init__(self, start, end, width,height):
         self.start = start
@@ -160,7 +173,7 @@ class StructureGenerator:
         self.maze = np.ones((height, width), dtype=np.int8)
         self.directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, left, down, up
 
-    def generateMaze(self):
+    def generateGrid(self):
         #! Ensure dimensions are odd - for some reason it makes the final row and column full of walls? could fix this
         if self.width % 2 == 0:
             self.width -= 1
@@ -189,7 +202,8 @@ class StructureGenerator:
                 self._dfs(nextX, nextY)
 
 
-gridPF = GridPathFinder((0, 0), (9, 9), 10, 10)
-gridPF.aStar()
+gridPF = GridPathFinder((0, 0), (19, 19), 20, 20)
+gridPF.solvableStructure()
+
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()
