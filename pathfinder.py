@@ -11,6 +11,16 @@ class PathFinder:
             self.loadFile(args[0])
         elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
             self.start, self.end, self.height, self.width = args
+            if self.width % 2 == 0:
+                self.width -= 1
+                self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
+            if self.height % 2 == 0:
+                self.height -= 1
+                self.end = (self.end[0], self.end[1] - 1) # ^^^
+            if self.end[0] >= self.width or self.end[1] >= self.height:
+                raise ValueError("End position must be within the bounds of the maze")
+            if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
+                raise ValueError("Start and end positions must be non-negative")
             self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
             self.structure = self.structInstance.generateMaze()
         else:

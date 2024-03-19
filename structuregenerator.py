@@ -16,6 +16,7 @@ class StructureGenerator:
         return self.maze.tolist()  # Convert back to list for compatibility with PathFinder
 
     def _dfs(self, x, y):
+        #! Cannot use even numbers for width and height for some reason
         self.maze[y][x] = 0
         np.random.shuffle(self.directions)
         for dx, dy in self.directions:

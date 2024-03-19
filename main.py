@@ -4,7 +4,7 @@ from mazepathfinder import MazePathFinder
 from structuregenerator import StructureGenerator
 
 
-gridPF = MazePathFinder('assets/mazes/maze1.txt')
+gridPF = GridPathFinder((0,0), (9,9), 10, 10)
 gridPF.aStar()
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()

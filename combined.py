@@ -21,6 +21,16 @@ class PathFinder:
             self.loadFile(args[0])
         elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
             self.start, self.end, self.height, self.width = args
+            if self.width % 2 == 0:
+                self.width -= 1
+                self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
+            if self.height % 2 == 0:
+                self.height -= 1
+                self.end = (self.end[0], self.end[1] - 1) # ^^^
+            if self.end[0] >= self.width or self.end[1] >= self.height:
+                raise ValueError("End position must be within the bounds of the maze")
+            if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
+                raise ValueError("Start and end positions must be non-negative")
             self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
             self.structure = self.structInstance.generateMaze()
         else:
@@ -137,10 +147,6 @@ class MazePathFinder(PathFinder):
             neighbors.append(Node(node, nodePos))
         return neighbors
 
-    def generateStructure(self, start, end, height, width):
-        #* I need to implement this method
-        pass
-
 class StructureGenerator:
     def __init__(self, start, end, width,height):
         self.start = start
@@ -157,6 +163,7 @@ class StructureGenerator:
         return self.maze.tolist()  # Convert back to list for compatibility with PathFinder
 
     def _dfs(self, x, y):
+        #! Cannot use even numbers for width and height for some reason
         self.maze[y][x] = 0
         np.random.shuffle(self.directions)
         for dx, dy in self.directions:
@@ -166,7 +173,7 @@ class StructureGenerator:
                 self._dfs(nextX, nextY)
 
 
-gridPF = GridPathFinder('assets/grids/grid1.txt')
+gridPF = GridPathFinder((0,0), (9,9), 10, 10)
 gridPF.aStar()
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()
