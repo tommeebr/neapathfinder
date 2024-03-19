@@ -32,7 +32,7 @@ class PathFinder:
             if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
                 raise ValueError("Start and end positions must be non-negative")
             self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-            self.structure = self.structInstance.generateMaze()
+            self.structure, self.width, self.height, self.end = self.structInstance.generateMaze()  # Update width, height and end
         else:
             raise ValueError("Must provide either a file path or height and width")
         
@@ -147,6 +147,10 @@ class MazePathFinder(PathFinder):
             neighbors.append(Node(node, nodePos))
         return neighbors
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 class StructureGenerator:
     def __init__(self, start, end, width,height):
         self.start = start
@@ -157,11 +161,23 @@ class StructureGenerator:
         self.directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, left, down, up
 
     def generateMaze(self):
+        #! Ensure dimensions are odd - for some reason it makes the final row and column full of walls? could fix this
+        if self.width % 2 == 0:
+            self.width -= 1
+        if self.height % 2 == 0:
+            self.height -= 1
+
+        # Adjust end position if it falls outside the adjusted grid size
+        if self.end[0] >= self.width:
+            self.end = (self.width - 1, self.end[1])
+        if self.end[1] >= self.height:
+            self.end = (self.end[0], self.height - 1)
+
         self._dfs(self.start[0], self.start[1])
         self.maze[self.start[1]][self.start[0]] = 0  # Ensure start is traversable
         self.maze[self.end[1]][self.end[0]] = 0  # Ensure end is traversable
-        return self.maze.tolist()  # Convert back to list for compatibility with PathFinder
-
+        return self.maze.tolist(), self.width, self.height, self.end  # Return adjusted width, height and end
+    
     def _dfs(self, x, y):
         #! Cannot use even numbers for width and height for some reason
         self.maze[y][x] = 0
@@ -173,7 +189,7 @@ class StructureGenerator:
                 self._dfs(nextX, nextY)
 
 
-gridPF = GridPathFinder((0,0), (9,9), 10, 10)
+gridPF = GridPathFinder((0, 0), (9, 9), 10, 10)
 gridPF.aStar()
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()
