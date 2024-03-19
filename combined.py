@@ -43,8 +43,8 @@ class PathFinder:
             print()  # Newline after each row
 
     def aStar(self):
-        startNode = Node(None, self.start)
-        endNode = Node(None, self.end)
+        startNode = Node(None, (self.start[1], self.start[0]))  
+        endNode = Node(None, (self.end[1], self.end[0]))  
 
         openList = []
         closedList = []
@@ -67,7 +67,7 @@ class PathFinder:
                 manhattanDistTotal = sum(self.manhattanDist(path[i], path[i+1]) for i in range(len(path) - 1))
 
                 print("Total Manhattan distance for path:", manhattanDistTotal)
-                return
+                return True
 
             children = self.getNeighbour(currentNode, self.structure)
             for child in children:
@@ -82,7 +82,7 @@ class PathFinder:
 
                 count += 1  # Increment counter
                 heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list          
-
+        return False
     def getNeighbour(self, node, grid):
         raise NotImplementedError("This method should be overridden in a subclass")  
 
@@ -166,7 +166,7 @@ class StructureGenerator:
                 self._dfs(nextX, nextY)
 
 
-gridPF = GridPathFinder((0,0), (20,20), 21, 21)
+gridPF = GridPathFinder('assets/grids/grid1.txt')
 gridPF.aStar()
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()

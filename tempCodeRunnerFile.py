@@ -1,2 +1,3 @@
-    print("No path found")
-                return
+idPF.aStar()
+gridPF.displayStructure()
+gridPF.displayPathOnStructure()
