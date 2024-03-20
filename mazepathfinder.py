@@ -1,5 +1,6 @@
 from pathfinder import PathFinder
 from node import Node
+from structuregenerator import StructureGenerator
 
 class MazePathFinder(PathFinder):
     def getNeighbour(self, node):

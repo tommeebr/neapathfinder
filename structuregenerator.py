@@ -39,3 +39,5 @@ class StructureGenerator:
             if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.array[nextY][nextX] == 1:
                 self.array[nextY-dy][nextX-dx] = 0
                 self._dfs(nextX, nextY)
+
+                
