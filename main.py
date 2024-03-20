@@ -5,6 +5,6 @@ from structuregenerator import StructureGenerator
 
 
 gridPF = GridPathFinder((0,0), (70,70), 71, 71)
-gridPF.aStar()
+gridPF.solvableStructure()
 gridPF.displayStructure()
 gridPF.displayPathOnStructure()

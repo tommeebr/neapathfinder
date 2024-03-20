@@ -5,26 +5,33 @@ import numpy as np
 from structuregenerator import StructureGenerator
 
 class PathFinder:
-    def __init__(self, *args):
-        self.path = []
-        if len(args) == 1 and isinstance(args[0], str):
+    def __init__(self, *args): 
+        self.path = [] 
+        self.fileInit = False
+        if len(args) == 1 and isinstance(args[0], str): 
             self.loadFile(args[0])
-        elif len(args) == 4 and all(isinstance(arg, (int,tuple)) for arg in args):
+            self.fileInit = True
+        elif len(args) == 4 and all(isinstance(arg, tuple) for arg in args[:2]) and all(isinstance(arg, int) for arg in args[2:]): 
             self.start, self.end, self.height, self.width = args
-            if self.width % 2 == 0:
-                self.width -= 1
-                self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
-            if self.height % 2 == 0:
-                self.height -= 1
-                self.end = (self.end[0], self.end[1] - 1) # ^^^
-            if self.end[0] >= self.width or self.end[1] >= self.height:
-                raise ValueError("End position must be within the bounds of the maze")
-            if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
-                raise ValueError("Start and end positions must be non-negative")
-            self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-            self.structure = self.structInstance.generateGrid()
-        else:
-            raise ValueError("Must provide either a file path or height and width")
+            self.validateInputs()
+            self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width) 
+        else: 
+            raise ValueError("Must provide either a file path or height and width") 
+
+                
+    def validateInputs(self):
+        if self.width % 2 == 0:
+            self.width -= 1
+            self.end = (self.end[0] - 1, self.end[1]) # Tuples are immutable, so have to assign it to a new one
+            print(f'EVEN Width not permitted. Adjusting width to {self.width}')
+        if self.height % 2 == 0:
+            self.height -= 1
+            self.end = (self.end[0], self.end[1] - 1) # ^^^
+            print(f'EVEN Height not permitted. Adjusting height to {self.height}')
+        if self.end[0] >= self.width or self.end[1] >= self.height:
+            raise ValueError("End position must be within the bounds of the maze")
+        if self.start[0] < 0 or self.start[1] < 0 or self.end[0] < 0 or self.end[1] < 0:
+            raise ValueError("Start and end positions must be non-negative")
         
     def manhattanDist(self, a, b):
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -41,6 +48,15 @@ class PathFinder:
                 else:
                     print(' -', end='')
             print()  # Newline after each row
+    
+    def solvableStructure(self):
+        if self.fileInit == True:
+            self.aStar()
+        else:
+            while True:
+                self.generateStructure()
+                if self.aStar():
+                    break
 
     def aStar(self):
         startNode = Node(None, (self.start[1], self.start[0]))  
@@ -69,7 +85,7 @@ class PathFinder:
                 print("Total Manhattan distance for path:", manhattanDistTotal)
                 return True
 
-            children = self.getNeighbour(currentNode, self.structure)
+            children = self.getNeighbour(currentNode)
             for child in children:
                 if child in closedList:
                     continue  # Child is already in the closed list
@@ -83,6 +99,7 @@ class PathFinder:
                 count += 1  # Increment counter
                 heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list          
         return False
+
     def getNeighbour(self, node, grid):
         raise NotImplementedError("This method should be overridden in a subclass")  
 
@@ -98,4 +115,9 @@ class PathFinder:
         self.end = tuple(map(int, lines[1].strip().split(',')))
 
         # Construct the 2D array
-        self.structure = np.array([list(map(int, line.strip().split(','))) for line in lines[2:]])
+        self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
+
+        self.height, self.width = len(self.structure), len(self.structure[0])
+    
+    def generateStructure(self):
+        raise NotImplementedError("This method should be overridden in a subclass")

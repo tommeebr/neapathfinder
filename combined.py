@@ -5,11 +5,11 @@ import numpy as np
 
 class Node:
     def __init__(self, parent=None, pos=None):
-        self.parent = parent
-        self.pos = pos
-        self.g = 0
-        self.h = 0
-        self.f = 0
+        self.parent = parent # Parent node
+        self.pos = pos # (x, y) coordinates
+        self.g = 0 # Cost to start node
+        self.h = 0 # Heuristic cost
+        self.f = 0 # Total cost of the node
 
     def __eq__(self, other):
         return self.pos == other.pos
@@ -161,8 +161,9 @@ class MazePathFinder(PathFinder):
                 continue  # Node is out of bounds
 
             # Check for walls
+            #* Bitwise AND operation to check for walls
             if newPos == (0, -1):  # Moving left
-                if self.structure[node.pos[0]][node.pos[1]] & 1:  # There's a left wall
+                if self.structure[node.pos[0]][node.pos[1]] & 1:  # There's a left wall 
                     continue
             elif newPos == (0, 1):  # Moving right
                 if nodePos[0] < len(self.structure) and self.structure[nodePos[0]][nodePos[1]] & 1:  # There's a left wall in the next cell
@@ -188,11 +189,11 @@ class StructureGenerator:
         self.end = end
         self.width = width
         self.height = height
-        self.maze = np.ones((height, width), dtype=np.int8)
+        self.array = np.ones((height, width), dtype=np.int8)
         self.directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, left, down, up
 
     def generateGrid(self):
-        #! Ensure dimensions are odd - for some reason it makes the final row and column full of walls? could fix this
+        #! Ensure dimensions are odd - for some reason it makes the final row and column full of walls? could do with fixing this
         if self.width % 2 == 0:
             self.width -= 1
         if self.height % 2 == 0:
@@ -205,22 +206,25 @@ class StructureGenerator:
             self.end = (self.end[0], self.height - 1)
 
         self._dfs(self.start[0], self.start[1])
-        self.maze[self.start[1]][self.start[0]] = 0  # Ensure start is traversable
-        self.maze[self.end[1]][self.end[0]] = 0  # Ensure end is traversable
-        return self.maze.tolist(), self.width, self.height, self.end  # Return adjusted width, height and end
+        self.array[self.start[1]][self.start[0]] = 0  # Ensure start is traversable
+        self.array[self.end[1]][self.end[0]] = 0  # Ensure end is traversable
+        return self.array.tolist(), self.width, self.height, self.end  # Return adjusted width, height and end
+    
+    def generateMaze(self):
+        raise NotImplementedError("This method has not yet been implemented")
     
     def _dfs(self, x, y):
         #! Cannot use even numbers for width and height for some reason
-        self.maze[y][x] = 0
+        self.array[y][x] = 0
         np.random.shuffle(self.directions)
         for dx, dy in self.directions:
             nextX, nextY = x + 2*dx, y + 2*dy
-            if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.maze[nextY][nextX] == 1:
-                self.maze[nextY-dy][nextX-dx] = 0
+            if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.array[nextY][nextX] == 1:
+                self.array[nextY-dy][nextX-dx] = 0
                 self._dfs(nextX, nextY)
     
 
-gridPF = GridPathFinder((0,0), (70,70), 71, 71)
+gridPF = MazePathFinder('assets/mazes/maze1.txt')
 gridPF.solvableStructure()
 
 gridPF.displayStructure()
