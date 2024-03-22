@@ -117,18 +117,25 @@ class PathFinder:
         raise NotImplementedError("This method should be overridden in a subclass")
 
     def loadFile(self, filePath):
-        with open(filePath, 'r') as file:
-            lines = file.readlines()
+        try:
+            with open(filePath, 'r') as file:
+                lines = file.readlines()
 
-        # Parse start and end positions
-        self.start = tuple(map(int, lines[0].strip().split(',')))
-        self.end = tuple(map(int, lines[1].strip().split(',')))
+            # Parse start and end positions
+            self.start = tuple(map(int, lines[0].strip().split(',')))
+            self.end = tuple(map(int, lines[1].strip().split(',')))
 
-        # Construct the 2D array
-        self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
+            # Construct the 2D array
+            self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
 
-        self.height, self.width = len(self.structure), len(self.structure[0])
-    
+            self.height, self.width = len(self.structure), len(self.structure[0])
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {filePath} not found.")
+        except ValueError:
+            print("Could not parse the file. Make sure it is in the correct format.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
     def generateStructure(self):
         raise NotImplementedError("This method should be overridden in a subclass")
 
@@ -148,8 +155,8 @@ class GridPathFinder(PathFinder):
         return neighbors
     
     def generateStructure(self):
-        self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-        structure, self.width, self.height, self.end = self.structInstance.generateGrid()
+        self.structInstance = GridGenerator(self.start, self.end, self.height, self.width)
+        structure, self.width, self.height, self.end = self.structInstance.generateStructure()
         self.structure = structure
 
 class MazePathFinder(PathFinder):
@@ -179,11 +186,13 @@ class MazePathFinder(PathFinder):
         return neighbors
     
     def generateStructure(self):
-        self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-        structure, self.width, self.height, self.end = self.structInstance.generateMaze()
+        self.structInstance = MazeGenerator(self.start, self.end, self.height, self.width)
+        structure, self.width, self.height, self.end = self.structInstance.generateStructure()
         self.structure = structure
 
-class StructureGenerator:
+
+    
+class StructureGenerator():
     def __init__(self, start, end, width,height):
         self.start = start
         self.end = end
@@ -191,8 +200,23 @@ class StructureGenerator:
         self.height = height
         self.array = np.ones((height, width), dtype=np.int8)
         self.directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, left, down, up
+    
+    def _dfs(self, x, y):
+        #! Cannot use even numbers for width and height for some reason
+        self.array[y][x] = 0
+        np.random.shuffle(self.directions)
+        for dx, dy in self.directions:
+            nextX, nextY = x + 2*dx, y + 2*dy
+            if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.array[nextY][nextX] == 1:
+                self.array[nextY-dy][nextX-dx] = 0
+                self._dfs(nextX, nextY)
+    
+    def generateStructure(self):
+        raise NotImplementedError("This method should be overridden in a subclass")
+    
 
-    def generateGrid(self):
+class GridGenerator(StructureGenerator):
+    def generateStructure(self):
         #! Ensure dimensions are odd - for some reason it makes the final row and column full of walls? could do with fixing this
         if self.width % 2 == 0:
             self.width -= 1
@@ -210,21 +234,11 @@ class StructureGenerator:
         self.array[self.end[1]][self.end[0]] = 0  # Ensure end is traversable
         return self.array.tolist(), self.width, self.height, self.end  # Return adjusted width, height and end
     
-    def generateMaze(self):
+class MazeGenerator(StructureGenerator):
+    def generateStructure(self):
         raise NotImplementedError("This method has not yet been implemented")
-    
-    def _dfs(self, x, y):
-        #! Cannot use even numbers for width and height for some reason
-        self.array[y][x] = 0
-        np.random.shuffle(self.directions)
-        for dx, dy in self.directions:
-            nextX, nextY = x + 2*dx, y + 2*dy
-            if (0 <= nextX < self.width) and (0 <= nextY < self.height) and self.array[nextY][nextX] == 1:
-                self.array[nextY-dy][nextX-dx] = 0
-                self._dfs(nextX, nextY)
-    
-
-gridPF = MazePathFinder('assets/mazes/maze1.txt')
+        
+gridPF = GridPathFinder('assets/grid/grid1.txt')
 gridPF.solvableStructure()
 
 gridPF.displayStructure()
