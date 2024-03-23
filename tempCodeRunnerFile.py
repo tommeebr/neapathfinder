@@ -1,2 +1,8 @@
+def main():
+    gridPF = PathFinderMaze("assets/mazes/maze1.txt")
+    gridPF.solvableStructure()
+    gridPF.displayStructure()
+    gridPF.displayPathOnStructure()
 
-        if self.height % 2 == 0:
+if __name__ == '__main__':
+    main()

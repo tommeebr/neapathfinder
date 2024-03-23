@@ -2,7 +2,7 @@ from node import Node
 import math
 import heapq
 import numpy as np
-from structuregenerator import StructureGenerator
+from generatorstructure import GeneratorStructure
 
 class PathFinder:
     def __init__(self, *args): 
@@ -14,7 +14,7 @@ class PathFinder:
         elif len(args) == 4 and all(isinstance(arg, tuple) for arg in args[:2]) and all(isinstance(arg, int) for arg in args[2:]): 
             self.start, self.end, self.height, self.width = args
             self.validateInputs()
-            self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width) 
+            self.structInstance = GeneratorStructure(self.start, self.end, self.height, self.width) 
         else: 
             raise ValueError("Must provide either a file path or height and width") 
 
@@ -110,28 +110,21 @@ class PathFinder:
         try:
             with open(filePath, 'r') as file:
                 lines = file.readlines()
-        except FileNotFoundError:
-            print(f"File {filePath} not found.")
-            return
-        except PermissionError:
-            print(f"Permission denied for file {filePath}.")
-            return
 
-        try:
             # Parse start and end positions
             self.start = tuple(map(int, lines[0].strip().split(',')))
             self.end = tuple(map(int, lines[1].strip().split(',')))
 
-            # Parse structure
+            # Construct the 2D array
             self.structure = [list(map(int, line.strip().split(','))) for line in lines[2:]]
 
-            # Infer height and width from structure
-            self.height = len(self.structure)
-            self.width = len(self.structure[0]) if self.structure else 0
-        except (IndexError, ValueError):
-            print(f"Error parsing file {filePath}. Check that it's in the correct format.")
-
-        self.height, self.width = len(self.structure), len(self.structure[0])
-    
+            self.height, self.width = len(self.structure), len(self.structure[0])
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {filePath} not found.")
+        except ValueError:
+            print("Could not parse the file. Make sure it is in the correct format.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
     def generateStructure(self):
         raise NotImplementedError("This method should be overridden in a subclass")

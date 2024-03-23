@@ -1,9 +1,9 @@
 from pathfinder import PathFinder
 from node import Node
 import numpy as np
-from structuregenerator import StructureGenerator
+from generatorgrid import GeneratorGrid
 
-class GridPathFinder(PathFinder):
+class PathFinderGrid(PathFinder):
     def __init__(self, *args): 
         super().__init__(*args)
 
@@ -19,8 +19,8 @@ class GridPathFinder(PathFinder):
         return neighbors
     
     def generateStructure(self):
-        self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-        structure, self.width, self.height, self.end = self.structInstance.generateGrid()
+        self.structInstance = GeneratorGrid(self.start, self.end, self.height, self.width)
+        structure, self.width, self.height, self.end = self.structInstance.generateStructure()
         self.structure = structure
 
     

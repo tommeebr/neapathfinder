@@ -1,7 +1,8 @@
 from pathfinder import PathFinder
 from node import Node
+from generatormaze import GeneratorMaze
 
-class MazePathFinder(PathFinder):
+class PathFinderMaze(PathFinder):
     def getNeighbour(self, node):
         neighbors = []
         for newPos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
@@ -28,7 +29,7 @@ class MazePathFinder(PathFinder):
         return neighbors
     
     def generateStructure(self):
-        self.structInstance = StructureGenerator(self.start, self.end, self.height, self.width)
-        structure, self.width, self.height, self.end = self.structInstance.generateMaze()
+        self.structInstance = GeneratorMaze(self.start, self.end, self.height, self.width)
+        structure, self.width, self.height, self.end = self.structInstance.generateStructure()
         self.structure = structure
 
