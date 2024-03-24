@@ -451,12 +451,15 @@ class CheckBox:
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
                 self.checked = not self.checked
+
 class Menu:
-    def __init__(self,screen):
+    def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
-        self.maze_button = Button("Maze", UI.half_width - 50, UI.half_height + 50, 100, 50, GREEN, LIGHT_GRAY)
-        self.grid_button = Button("Grid", UI.half_width - 50, UI.half_height - 50, 100, 50, GREEN, LIGHT_GRAY)
+        self.maze_button = Button("Maze", UI.half_width - 50, UI.half_height, 100, 50, GREEN, LIGHT_GRAY)
+        self.grid_button = Button("Grid", UI.half_width - 50, UI.half_height - 75, 100, 50, GREEN, LIGHT_GRAY)
+        self.draw_button = Button("Draw", UI.half_width - 50, UI.half_height + 75, 100, 50, GREEN,
+                                  LIGHT_GRAY)  # New button
 
     def game_intro(self):
         intro = True
@@ -470,19 +473,19 @@ class Menu:
             self.screen.fill(MAIN)
             large_text = UI.fonts['xl']
             TextSurf1, TextRect1 = self.text_objects("Pathfinding", large_text)
-            TextRect1.center = ((SCREEN_WIDTH/2),(150))
+            TextRect1.center = ((SCREEN_WIDTH / 2), (150))
             self.screen.blit(TextSurf1, TextRect1)
 
             TextSurf2, TextRect2 = self.text_objects("Showcase", large_text)
-            TextRect2.center = ((SCREEN_WIDTH/2),(200))
+            TextRect2.center = ((SCREEN_WIDTH / 2), (200))
             self.screen.blit(TextSurf2, TextRect2)
 
             self.maze_button.draw(self.screen, self.maze_page)
             self.grid_button.draw(self.screen, self.grid_page)
+            self.draw_button.draw(self.screen, self.draw_page)  # New button
 
             pygame.display.update()
             self.clock.tick(15)
-
     @staticmethod
     def text_objects(text, font):
         text_surface = font.render(text, True, CONTRAST)
@@ -494,6 +497,10 @@ class Menu:
 
     def grid_page(self):
         page = GridPage(self.screen)
+        page.display_page()
+
+    def draw_page(self):
+        page = DrawPage(self.screen)
         page.display_page()
 
 class Page:
@@ -730,7 +737,6 @@ class MazePage(Page):
         self.use_file_button = Button("Use File", 50, 400, 100, 50, GREEN, LIGHT_GRAY)
         self.solve_button = Button("Solve", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
         self.show_grid_checkbox = CheckBox(50, 675, 20, 20, True, 'Grid Lines')
-        self.visualise_solver_checkbox = CheckBox(50, 725, 20, 20, False, 'Visualise A*')
         self.help_button = Button("Help", 50, 600, 100, 50, BLUE, LIGHT_GRAY)
         self.grid = []
         self.start = None
@@ -738,7 +744,8 @@ class MazePage(Page):
         self.error_message = ''
         self.path = []
         self.cell_size = 0
-
+        self.pathfinder = None
+        
     def display_page(self):
         page = True
         small_text = UI.fonts['sm']
@@ -750,7 +757,6 @@ class MazePage(Page):
                     quit()
 
                 self.show_grid_checkbox.handle_event(event)
-                self.visualise_solver_checkbox.handle_event(event)
                 if event.type == pygame.MOUSEBUTTONDOWN and self.grid:
                     self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
                     x, y = event.pos
@@ -760,9 +766,9 @@ class MazePage(Page):
                     # Check if the click is within the grid
                     if 0 <= grid_x < len(self.grid[0]) and 0 <= grid_y < len(self.grid):
                         if event.button == 1:  # Left mouse button
-                            [...]
+                            pass
                         elif event.button == 3:  # Right mouse button
-                            [...]
+                            pass
 
             self.screen.fill(MAIN)
 
@@ -771,7 +777,7 @@ class MazePage(Page):
             self.solve_button.draw(self.screen, self.solve)
             self.help_button.draw(self.screen, self.show_help)
             self.show_grid_checkbox.draw(self.screen)
-            self.visualise_solver_checkbox.draw(self.screen)
+
 
             self.draw_grid()
 
@@ -800,6 +806,38 @@ class MazePage(Page):
         if self.grid:
             self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
             wall_thickness = self.cell_size // 10  # Adjust this value to change the wall thickness
+
+            # Draw start and end positions
+            if self.start:
+                start_x = 1000 - len(self.grid[0]) * self.cell_size + self.start[1] * self.cell_size
+                start_y = self.start[0] * self.cell_size
+                pygame.draw.rect(self.screen, START, pygame.Rect(start_x, start_y, self.cell_size, self.cell_size))
+            if self.end:
+                end_x = 1000 - len(self.grid[0]) * self.cell_size + self.end[1] * self.cell_size
+                end_y = self.end[0] * self.cell_size
+                pygame.draw.rect(self.screen, END, pygame.Rect(end_x, end_y, self.cell_size, self.cell_size))
+
+            if self.path:
+                self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
+                for i in range(len(self.path) - 1):
+                    current_cell = self.path[i]
+                    next_cell = self.path[i + 1]
+                    x = 1000 - len(self.grid[0]) * self.cell_size + current_cell[1] * self.cell_size
+                    y = current_cell[0] * self.cell_size
+                    start = (x, y)
+                    end = (x + self.cell_size, y + self.cell_size)
+                    # Calculate the direction of the arrow based on the current cell and the next cell in the path
+                    if next_cell[1] > current_cell[1]:
+                        direction = 'right'
+                    elif next_cell[1] < current_cell[1]:
+                        direction = 'left'
+                    elif next_cell[0] > current_cell[0]:
+                        direction = 'down'
+                    elif next_cell[0] < current_cell[0]:
+                        direction = 'up'
+                    self.draw_arrow(start, end, GREEN, direction)
+
+            # Draw the walls after drawing the path
             for i, row in enumerate(self.grid):
                 for j, cell in enumerate(row):
                     x = 1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size
@@ -817,29 +855,117 @@ class MazePage(Page):
                     if self.show_grid_checkbox.checked:  # Draw the grid lines
                         pygame.draw.rect(self.screen, CONTRAST, pygame.Rect(x, y, self.cell_size, self.cell_size), 1)
 
-
+    def draw_arrow(self, start, end, color, direction):
+        offset = self.cell_size // 4  # Adjust this value to change the size of the arrow
+        if direction == 'right':
+            points = [(start[0] + offset, start[1] + offset), (end[0] - offset, (start[1] + end[1]) / 2),
+                      (start[0] + offset, end[1] - offset)]
+        elif direction == 'left':
+            points = [(end[0] - offset, start[1] + offset), (start[0] + offset, (start[1] + end[1]) / 2),
+                      (end[0] - offset, end[1] - offset)]
+        elif direction == 'up':
+            points = [(start[0] + offset, end[1] - offset), ((start[0] + end[0]) / 2, start[1] + offset),
+                      (end[0] - offset, end[1] - offset)]
+        elif direction == 'down':
+            points = [(start[0] + offset, start[1] + offset), ((start[0] + end[0]) / 2, end[1] - offset),
+                      (end[0] - offset, start[1] + offset)]
+        pygame.draw.polygon(self.screen, color, points)
 
     def solve(self):
         if self.grid and self.start and self.end:
-            pass
-        else:
-            pass
+            self.pathfinder = PathFinderMaze(self.start, self.end, len(self.grid[0]), len(self.grid), self.grid)
+            self.pathfinder.path = self.pathfinder.aStar()
+            self.path = self.pathfinder.path
+            self.display_manhattan_distance()
+            
 
-    def update_grid_with_path(self):
-        if self.path:
-            pass
-        else:
-            pass
+
+
 
     def display_manhattan_distance(self):
-        manhattan_distance = sum(
-            self.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
-        text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
-        self.screen.blit(text1, (100, SCREEN_HEIGHT - 40))
+        if self.path and self.pathfinder:
+            manhattan_distance = sum(
+                self.pathfinder.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
+            text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
+            self.screen.blit(text1 , (100, SCREEN_HEIGHT - 40))
+
 
     def show_help(self):
-        print("GridPage show_help method called")
-        help_page = GridHelpPage(self.screen)
+        print("MazePage show_help method called")
+        help_page = MazeHelpPage(self.screen)
+        help_page.display_page()
+
+class DrawPage(Page):
+    def __init__(self, screen):
+        super().__init__(screen, "Draw")
+        self.width_input = InputBox(50, 150, 100, 32, self, 'Width')  # Pass self as the page argument
+        self.height_input = InputBox(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
+        self.solve_button = Button("Solve", 50, 300, 100, 50, GREEN, LIGHT_GRAY)
+        self.help_button = Button("Help", 50, 400, 100, 50, BLUE, LIGHT_GRAY)
+        self.draw_checkbox = CheckBox(50, 650, 20, 20, False, 'Draw')  # Changed to CheckBox
+        self.visualise_solver_checkbox = CheckBox(50, 700, 20, 20, False, 'Visualise A*')
+        self.show_grid_checkbox = CheckBox(50, 675, 20, 20, True, 'Grid Lines')
+        self.start = None
+        self.end = None
+        self.grid = []
+        self.cell_size = 0
+
+      # Quit pygame when the loop is exited
+
+    def generateBlank(self):
+        if self.width_input.validate() and self.height_input.validate():
+            width = int(self.width_input.text)
+            height = int(self.height_input.text)
+
+            # Ensure the dimensions are odd
+            if width % 2 == 0:
+                width -= 1
+            if height % 2 == 0:
+                height -= 1
+
+            self.cell_size = 800 // max(width, height)
+            self.grid = [[0 for _ in range(width)] for _ in range(height)]
+        else:
+            print("Error: Width and height should be numbers between 5 and 100")
+
+    def draw_grid(self):
+        # ! Right hand side column goes off the screen
+        if self.grid:
+            self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
+            for i, row in enumerate(self.grid):
+                for j, cell in enumerate(row):
+                    rect = pygame.Rect(1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size,
+                                       i * self.cell_size, self.cell_size, self.cell_size)
+                    if not self.draw_checkbox.checked:
+                        if (i, j) == self.start:
+                            pygame.draw.rect(self.screen, START, rect)
+                        elif (i, j) == self.end:
+                            pygame.draw.rect(self.screen, END, rect)
+                        else:
+                            pygame.draw.rect(self.screen, MAIN if cell == 0 else GREEN, rect)
+                    else:
+                        pygame.draw.rect(self.screen, MAIN if cell == 0 else GREEN, rect)
+
+            # Draw grid lines
+            if self.show_grid_checkbox.checked:
+                for i in range(len(self.grid[0])):  # Adjusted to iterate over the width of the grid
+                    pygame.draw.line(self.screen, CONTRAST,
+                                     (1000 - len(self.grid[0]) * self.cell_size + i * self.cell_size, 0),
+                                     (1000 - len(self.grid[0]) * self.cell_size + i * self.cell_size,
+                                      (len(self.grid) - 1) * self.cell_size), 2)  # Adjusted to stop at the last cell
+                for i in range(len(self.grid)):  # Adjusted to iterate over the height of the grid
+                    pygame.draw.line(self.screen, CONTRAST,
+                                     (1000 - len(self.grid[0]) * self.cell_size, i * self.cell_size),
+                                     (1000, i * self.cell_size), 2)
+
+    def solve(self):
+        pass
+    def draw(self):
+        pass
+
+    def show_help(self):
+        print("DrawPage show_help method called")
+        help_page = DrawHelpPage(self.screen)
         help_page.display_page()
 
 class GridHelpPage(GridPage):
@@ -848,7 +974,6 @@ class GridHelpPage(GridPage):
         self.back_button = Button("Back", 50, 50, 100, 50, RED, LIGHT_GRAY)
 
     def display_page(self):
-        print("GridHelpPage display_page method called")
         page = True
 
         while page:
@@ -887,10 +1012,38 @@ class GridHelpPage(GridPage):
 class MazeHelpPage(MazePage):
     def __init__(self, screen):
         super().__init__(screen)
+        self.back_button = Button("Back", 50, 50, 100, 50, RED, LIGHT_GRAY)
 
     def display_page(self):
-        # Implement the method to display help content for the Maze page
-        pass
+        page = True
+
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+            self.screen.fill(MAIN)
+            self.back_button.draw(self.screen, self.back)
+            small_text = UI.fonts['sm']
+            text_surf1, text_rect1 = self.text_objects('Load a maze by pressing Use File button', small_text)
+            text_rect1.center = (UI.half_width, UI.half_height - 100)
+            self.screen.blit(text_surf1, text_rect1)
+            text_surf2, text_rect2 = self.text_objects('File must be in correct format', small_text)
+            text_rect2.center = (UI.half_width, UI.half_height - 70)
+            self.screen.blit(text_surf2, text_rect2)
+            text_surf3, text_rect3 = self.text_objects('Arrows after solve correspond to direction the path is travelling', small_text)
+            text_rect3.center = (UI.half_width, UI.half_height)
+            self.screen.blit(text_surf3, text_rect3)
+
+
+            pygame.display.update()
+            self.clock.tick(15)
+
+    def back(self):
+        print("Back method called")
+        grid_page = MazePage(self.screen)
+        grid_page.display_page()
 
 class VisualGeneratorGrid(GeneratorGrid):
     def __init__(self, start, end, width, height, screen):
@@ -1025,7 +1178,8 @@ class VisualAStar(PathFinderGrid):
                           self.cell_size, self.cell_size))  # Draw current node in blue
 
         pygame.display.update()  # Update the display
-        pygame.time.delay(2)  # Delay to slow down the animation
+        pygame.time.delay(30)  # Delay to slow down the animation
+
 
 
 
