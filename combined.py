@@ -5,6 +5,8 @@ import numpy as np
 import pygame
 from pygame.locals import *
 import sys
+import tkinter as tk
+from tkinter import filedialog
 
 
 class Node:
@@ -19,9 +21,10 @@ class Node:
         return self.pos == other.pos
 
 class PathFinder:
-    def __init__(self, *args):
+    def __init__(self, *args, structure = None):
         self.path = []
         self.fileInit = False
+        self.structure = structure
         if len(args) == 1 and isinstance(args[0], str):
             self.loadFile(args[0])
             self.fileInit = True
@@ -29,6 +32,8 @@ class PathFinder:
             self.start, self.end, self.height, self.width = args
             self.validateInputs()
             self.structInstance = GeneratorStructure(self.start, self.end, self.height, self.width)
+        elif len(args) == 5:
+            self.start, self.end, self.height, self.width, self.structure = args
         else:
             raise ValueError("Must provide either a file path or height and width")
 
@@ -67,14 +72,17 @@ class PathFinder:
         if self.fileInit == True:
             self.aStar()
         else:
-            while True:
-                self.generateStructure()
-                if self.aStar():
-                    break
+            if self.structure is None:
+                while True:
+                    self.generateStructure()
+                    if self.aStar():
+                        break
+            else:
+                self.aStar()
 
     def aStar(self):
-        startNode = Node(None, (self.start[1], self.start[0]))
-        endNode = Node(None, (self.end[1], self.end[0]))
+        startNode = Node(None, self.start)
+        endNode = Node(None, self.end)
 
         openList = []
         closedList = []
@@ -94,10 +102,10 @@ class PathFinder:
                 self.path = path[::-1]  # Reverse the path
 
                 # Calculate the Manhattan distances for the final path
-                manhattanDistTotal = sum(self.manhattanDist(path[i], path[i+1]) for i in range(len(path) - 1))
+                manhattanDistTotal = sum(self.manhattanDist(path[i], path[i + 1]) for i in range(len(path) - 1))
 
                 print("Total Manhattan distance for path:", manhattanDistTotal)
-                return True
+                return self.path
 
             children = self.getNeighbour(currentNode)
             for child in children:
@@ -107,14 +115,21 @@ class PathFinder:
                 child.h = self.manhattanDist(child.pos, endNode.pos)
                 child.f = child.g + child.h
 
-                if any(openNode for openNode in openList if child == openNode[2] and child.g > openNode[2].g):
+                # Check if child is in open list and if it has a lower g value
+                inOpenList = False
+                for openNode in openList:
+                    if child == openNode[2] and child.g >= openNode[2].g:
+                        inOpenList = True
+                        break
+
+                if inOpenList:
                     continue  # Child is already in the open list and has a higher g value
 
                 count += 1  # Increment counter
                 heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list
-        return False
+        return []
 
-    def getNeighbour(self, node, grid):
+    def getNeighbour(self, node):
         raise NotImplementedError("This method should be overridden in a subclass")
 
     def findPath(self):
@@ -151,7 +166,7 @@ class PathFinderGrid(PathFinder):
         neighbors = []
         for newPos in [(0, -1), (0, 1), (-1, 0), (1, 0)]:  # Adjacent squares
             nodePos = (node.pos[0] + newPos[0], node.pos[1] + newPos[1])
-            if nodePos[0] < 0 or nodePos[0] >= self.height or nodePos[1] < 0 or nodePos[1] >= self.width:
+            if nodePos[0] < 0 or nodePos[0] >= self.width or nodePos[1] < 0 or nodePos[1] >= self.height:
                 continue  # Node is out of bounds
             if self.structure[nodePos[0]][nodePos[1]] != 0:
                 continue  # Node is not walkable
@@ -159,9 +174,10 @@ class PathFinderGrid(PathFinder):
         return neighbors
 
     def generateStructure(self):
-        self.structInstance = GeneratorGrid(self.start, self.end, self.height, self.width)
-        structure, self.width, self.height, self.end = self.structInstance.generateStructure()
-        self.structure = structure
+        if self.structure is None:
+            self.structInstance = GeneratorStructure(self.start, self.end, self.height, self.width)
+            structure, self.width, self.height, self.end = self.structInstance.generateStructure()
+            self.structure = structure
 
 class PathFinderMaze(PathFinder):
     def getNeighbour(self, node):
@@ -495,13 +511,35 @@ class Page:
         text_surface = font.render(text, True, CONTRAST)
         return text_surface, text_surface.get_rect()
 
+    def useFile(self):
+        root = tk.Tk()  # * Used tkinter to open file dialog, not possible in pygame
+        root.withdraw()  # Hide the main window
+        filePath = filedialog.askopenfilename()  # Open the file dialog
+
+        try:
+            # Create a PathFinder instance and use its loadFile method
+            pathfinder = PathFinder(filePath)
+            self.grid = pathfinder.structure
+            self.start = pathfinder.start
+            self.end = pathfinder.end
+            self.width = pathfinder.width
+            self.height = pathfinder.height
+
+        except FileNotFoundError:
+            self.error_message = f"File {filePath} not found."
+        except ValueError:
+            self.error_message = "Could not parse the file. Make sure it is in the correct format."
+        except Exception as e:
+            self.error_message = f"An error occurred: {e}"
+
     def back(self):
         menu = Menu(self.screen)
         menu.game_intro()
 
-class GridPage(Page):
+class GridPage(Page, PathFinder):
     def __init__(self, screen):
         super().__init__(screen, "Grid")
+        self.width = None
         self.generate_button = Button("Generate", 50, 300, 100, 50, GREEN, LIGHT_GRAY)
         self.use_file_button = Button("Use File", 50, 400, 100, 50, GREEN, LIGHT_GRAY)
         self.solve_button = Button("Solve", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
@@ -516,6 +554,7 @@ class GridPage(Page):
         self.end = None
         self.error_message = ''
         self.path = []
+        self.cell_size = 0
 
     def display_page(self):
         page = True
@@ -533,10 +572,10 @@ class GridPage(Page):
                 self.visualise_generation_checkbox.handle_event(event)
                 self.visualise_solver_checkbox.handle_event(event)
                 if event.type == pygame.MOUSEBUTTONDOWN and self.grid:
-                    cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
+                    self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
                     x, y = event.pos
-                    grid_x = (x - (1000 - len(self.grid[0]) * cell_size)) // cell_size
-                    grid_y = y // cell_size
+                    grid_x = (x - (1000 - len(self.grid[0]) * self.cell_size)) // self.cell_size
+                    grid_y = y // self.cell_size
 
                     # Check if the click is within the grid
                     if 0 <= grid_x < len(self.grid[0]) and 0 <= grid_y < len(self.grid):
@@ -553,8 +592,8 @@ class GridPage(Page):
 
             self.back_button.draw(self.screen, self.back)
             self.generate_button.draw(self.screen, self.generate)
-            self.use_file_button.draw(self.screen, lambda: None)
-            self.solve_button.draw(self.screen)
+            self.use_file_button.draw(self.screen, self.useFile)
+            self.solve_button.draw(self.screen, self.solve)
             self.help_button.draw(self.screen, self.show_help)
             self.show_grid_checkbox.draw(self.screen)
             self.visualise_generation_checkbox.draw(self.screen)
@@ -575,11 +614,14 @@ class GridPage(Page):
             # Add these lines
             if self.error_message:
                 # Wrap the error message to fit within 200px
-                error_lines = TextUtils.wrap_to_pixels(small_text, self.error_message, 200)
+                error_lines = TextUtils.wrap_to_pixels(small_text, self.error_message, 150)
                 for i, line in enumerate(error_lines):
                     error_text_surface = small_text.render(line, True, RED)
                     self.screen.blit(error_text_surface,
                                      (50, 350 + i * small_text.get_linesize()))
+
+            if self.path:
+                self.display_manhattan_distance()
 
             pygame.display.update()
             self.clock.tick(15)
@@ -595,14 +637,14 @@ class GridPage(Page):
             if height % 2 == 0:
                 height -= 1
 
-            cell_size = 800 // max(width, height)
+            self.cell_size = 800 // max(width, height)
             self.grid = [[0 for _ in range(width)] for _ in range(height)]
         else:
             print("Error: Width and height should be numbers between 5 and 100")
 
     def draw_grid(self):
         if self.grid:
-            cell_size = 800 // max(len(self.grid[0]), len(self.grid))
+            self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
             for i, row in enumerate(self.grid):
                 for j, cell in enumerate(row):
                     if cell == 1:  # If the cell is a wall
@@ -616,15 +658,15 @@ class GridPage(Page):
                     else:
                         colour = MAIN  # Default colour
                     pygame.draw.rect(self.screen, colour,
-                                     pygame.Rect(1000 - len(self.grid[0]) * cell_size + j * cell_size,
-                                                 i * cell_size, cell_size, cell_size))
+                                     pygame.Rect(1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size,
+                                                 i * self.cell_size, self.cell_size, self.cell_size))
             # Draw grid lines
             if self.show_grid_checkbox.checked:
                 for i in range(len(self.grid)):
                     for j in range(len(self.grid[0])):
                         pygame.draw.rect(self.screen, CONTRAST,
-                                         pygame.Rect(1000 - len(self.grid[0]) * cell_size + j * cell_size,
-                                                     i * cell_size, cell_size, cell_size), 1)
+                                         pygame.Rect(1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size,
+                                                     i * self.cell_size, self.cell_size, self.cell_size), 1)
 
     def generate(self):
         if self.start is not None and self.end is not None and self.width_input.validate() and self.height_input.validate():
@@ -637,15 +679,45 @@ class GridPage(Page):
             if height % 2 == 0:
                 height -= 1
 
+            self.width = width
+            self.height = height
+
             if self.visualise_generation_checkbox.checked:
-                generator = VisualGeneratorGrid(self.start, self.end, width, height, self.screen)
+                generator = VisualGeneratorGrid(self.start, self.end, self.width, self.height, self.screen)
             else:
-                generator = GeneratorGrid(self.start, self.end, width, height)
+                generator = GeneratorGrid(self.start, self.end, self.width, self.height)
             self.grid, _, _, _ = generator.generateStructure()
             self.error_message = ''
         else:
             self.error_message = 'Error: Start, end positions and dimensions must be set before generation'
 
+    def solve(self):
+        if self.grid and self.start and self.end and self.width and self.height:
+            if self.visualise_solver_checkbox.checked:
+                pathfinder = VisualAStar(self.start, self.end, self.width, self.height, self.screen, self.cell_size,
+                                         structure=self.grid)
+            else:
+                pathfinder = PathFinderGrid(self.start, self.end, self.width, self.height, self.grid)
+            pathfinder.path = pathfinder.aStar()
+            self.path = pathfinder.path
+            self.update_grid_with_path()
+        else:
+            self.error_message = 'Error: Grid must be generated before solving'
+
+    def update_grid_with_path(self):
+        if self.path:
+            for cell in self.path:
+                if cell[0] < len(self.grid) and cell[1] < len(self.grid[0]):
+                    self.grid[cell[0]][cell[1]] = 2  # Use a different number to represent the path
+                else:
+                    print(f"Error: Cell {cell} is out of grid bounds.")
+        else:
+            print("Error: No path to update.")
+
+    def display_manhattan_distance(self):
+        manhattan_distance = sum(self.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
+        text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
+        self.screen.blit(text1 , (100, SCREEN_HEIGHT - 40))
 
     def show_help(self):
         print("GridPage show_help method called")
@@ -655,13 +727,115 @@ class GridPage(Page):
 class MazePage(Page):
     def __init__(self, screen):
         super().__init__(screen, "Maze")
-        self.help_button = Button("Help", 50, 450, 100, 50, BLUE, LIGHT_GRAY)
-
-        # Add any specific buttons or functionality for the Maze page
+        self.use_file_button = Button("Use File", 50, 400, 100, 50, GREEN, LIGHT_GRAY)
+        self.solve_button = Button("Solve", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
+        self.show_grid_checkbox = CheckBox(50, 675, 20, 20, True, 'Grid Lines')
+        self.visualise_solver_checkbox = CheckBox(50, 725, 20, 20, False, 'Visualise A*')
+        self.help_button = Button("Help", 50, 600, 100, 50, BLUE, LIGHT_GRAY)
+        self.grid = []
+        self.start = None
+        self.end = None
+        self.error_message = ''
+        self.path = []
+        self.cell_size = 0
 
     def display_page(self):
-        # Implement the display_page method for the Maze page
-        pass
+        page = True
+        small_text = UI.fonts['sm']
+
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+                self.show_grid_checkbox.handle_event(event)
+                self.visualise_solver_checkbox.handle_event(event)
+                if event.type == pygame.MOUSEBUTTONDOWN and self.grid:
+                    self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
+                    x, y = event.pos
+                    grid_x = (x - (1000 - len(self.grid[0]) * self.cell_size)) // self.cell_size
+                    grid_y = y // self.cell_size
+
+                    # Check if the click is within the grid
+                    if 0 <= grid_x < len(self.grid[0]) and 0 <= grid_y < len(self.grid):
+                        if event.button == 1:  # Left mouse button
+                            [...]
+                        elif event.button == 3:  # Right mouse button
+                            [...]
+
+            self.screen.fill(MAIN)
+
+            self.back_button.draw(self.screen, self.back)
+            self.use_file_button.draw(self.screen, self.useFile)
+            self.solve_button.draw(self.screen, self.solve)
+            self.help_button.draw(self.screen, self.show_help)
+            self.show_grid_checkbox.draw(self.screen)
+            self.visualise_solver_checkbox.draw(self.screen)
+
+            self.draw_grid()
+
+            if self.start:
+                start_text = small_text.render(f'Start: {self.start}', True, CONTRAST)
+                self.screen.blit(start_text, (10, SCREEN_HEIGHT - 40))
+
+            if self.end:
+                end_text = small_text.render(f'End: {self.end}', True, CONTRAST)
+                self.screen.blit(end_text, (10, SCREEN_HEIGHT - 20))
+
+            if self.error_message:
+                error_lines = TextUtils.wrap_to_pixels(small_text, self.error_message, 150)
+                for i, line in enumerate(error_lines):
+                    error_text_surface = small_text.render(line, True, RED)
+                    self.screen.blit(error_text_surface,
+                                     (50, 350 + i * small_text.get_linesize()))
+
+            if self.path:
+                self.display_manhattan_distance()
+
+            pygame.display.update()
+            self.clock.tick(15)
+
+    def draw_grid(self):
+        if self.grid:
+            self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
+            wall_thickness = self.cell_size // 10  # Adjust this value to change the wall thickness
+            for i, row in enumerate(self.grid):
+                for j, cell in enumerate(row):
+                    x = 1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size
+                    y = i * self.cell_size
+                    if cell == 1 or cell == 3:  # Draw a wall on the left side of the cell
+                        pygame.draw.line(self.screen, CONTRAST, (x, y), (x, y + self.cell_size), wall_thickness)
+                    if cell == 2 or cell == 3:  # Draw a wall on the top side of the cell
+                        pygame.draw.line(self.screen, CONTRAST, (x, y), (x + self.cell_size, y), wall_thickness)
+                    if j == len(row) - 1:  # Draw a wall on the right side of the rightmost cells
+                        pygame.draw.line(self.screen, CONTRAST, (x + self.cell_size, y),
+                                         (x + self.cell_size, y + self.cell_size), wall_thickness)
+                    if i == len(self.grid) - 1:  # Draw a wall on the bottom side of the bottommost cells
+                        pygame.draw.line(self.screen, CONTRAST, (x, y + self.cell_size),
+                                         (x + self.cell_size, y + self.cell_size), wall_thickness)
+                    if self.show_grid_checkbox.checked:  # Draw the grid lines
+                        pygame.draw.rect(self.screen, CONTRAST, pygame.Rect(x, y, self.cell_size, self.cell_size), 1)
+
+
+
+    def solve(self):
+        if self.grid and self.start and self.end:
+            pass
+        else:
+            pass
+
+    def update_grid_with_path(self):
+        if self.path:
+            pass
+        else:
+            pass
+
+    def display_manhattan_distance(self):
+        manhattan_distance = sum(
+            self.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
+        text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
+        self.screen.blit(text1, (100, SCREEN_HEIGHT - 40))
 
     def show_help(self):
         print("GridPage show_help method called")
@@ -726,10 +900,10 @@ class VisualGeneratorGrid(GeneratorGrid):
 
     def generateStructure(self):
         # Draw a white rectangle as the background of the grid
-        cell_size = 800 // max(self.width, self.height)
+        self.cell_size = 800 // max(self.width, self.height)
         pygame.draw.rect(self.screen, CONTRAST,
-                         pygame.Rect(1000 - self.width * cell_size, 0,
-                                     self.width * cell_size, self.height * cell_size))
+                         pygame.Rect(1000 - self.width * self.cell_size, 0,
+                                     self.width * self.cell_size, self.height * self.cell_size))
         pygame.display.update()
 
         # Call the parent class's generateStructure method
@@ -752,12 +926,108 @@ class VisualGeneratorGrid(GeneratorGrid):
         self.stack.pop()  # Remove the current cell from the stack
 
     def draw_cell(self, x, y, colour):
-        cell_size = 800 // max(self.width, self.height)
+        self.cell_size = 800 // max(self.width, self.height)
         pygame.draw.rect(self.screen, colour,
-                         pygame.Rect(1000 - self.width * cell_size + x * cell_size,
-                                     y * cell_size, cell_size, cell_size))
+                         pygame.Rect(1000 - self.width * self.cell_size + x * self.cell_size,
+                                     y * self.cell_size, self.cell_size, self.cell_size))
         pygame.display.update()
         pygame.time.delay(40)
+
+class VisualAStar(PathFinderGrid):
+    def __init__(self, start, end, width, height, screen, cell_size, structure=None):
+        super().__init__(start, end, width, height, structure)
+        self.screen = screen
+        self.cell_size = cell_size
+
+    def aStar(self):
+        startNode = Node(None, self.start)
+        endNode = Node(None, self.end)
+
+        openList = []
+        closedList = []
+
+        count = 0  # Counter for tie-breaking
+        heapq.heappush(openList, (startNode.f, count, startNode))  # Add the start node
+
+        while len(openList) > 0:
+            currentNode = heapq.heappop(openList)[2]  # Node with the lowest f values
+            closedList.append(currentNode)
+
+            if currentNode == endNode:
+                # Found the goal
+                path = []
+                while currentNode is not None:
+                    path.append(currentNode.pos)
+                    currentNode = currentNode.parent
+                self.path = path[::-1]  # Reverse the path
+
+                # Calculate the Manhattan distances for the final path
+                manhattanDistTotal = sum(self.manhattanDist(path[i], path[i + 1]) for i in range(len(path) - 1))
+
+                print("Total Manhattan distance for path:", manhattanDistTotal)
+                return self.path
+
+            children = self.getNeighbour(currentNode)
+            for child in children:
+                if child in closedList:
+                    continue  # Child is already in the closed list
+                child.g = currentNode.g + 1
+                child.h = self.manhattanDist(child.pos, endNode.pos)
+                child.f = child.g + child.h
+
+                # Check if child is in open list and if it has a lower g value
+                inOpenList = False
+                for openNode in openList:
+                    if child == openNode[2] and child.g >= openNode[2].g:
+                        inOpenList = True
+                        break
+
+                if inOpenList:
+                    continue  # Child is already in the open list and has a higher g value
+
+                count += 1  # Increment counter
+                heapq.heappush(openList, (child.f, count, child))  # Add the child to the open list
+
+            self.draw(openList, closedList, currentNode)  # Draw the current state of the algorithm
+        return []
+
+    # ! Different dimensions does not align correctly.
+    def draw(self, openList, closedList, currentNode):
+        self.screen.fill((0, 0, 0))  # Clear the screen
+
+        # Calculate the remaining space on the left of the grid
+        remaining_space_left = 1000 - (self.width * self.cell_size)
+
+        # Draw the grid and walls here
+        for i, row in enumerate(self.structure):
+            for j, cell in enumerate(row):
+                if cell == 1:  # If the cell is a wall
+                    pygame.draw.rect(self.screen, (255, 255, 255),  # Draw the wall in white
+                                     (remaining_space_left + j * self.cell_size,
+                                      i * self.cell_size,
+                                      self.cell_size, self.cell_size))
+
+        for node in openList:
+            pygame.draw.rect(self.screen, GREEN,
+                             (remaining_space_left + node[2].pos[1] * self.cell_size,
+                              node[2].pos[0] * self.cell_size,
+                              self.cell_size, self.cell_size))  # Draw open nodes in green
+
+        for node in closedList:
+            pygame.draw.rect(self.screen, RED,
+                             (remaining_space_left + node.pos[1] * self.cell_size,
+                              node.pos[0] * self.cell_size,
+                              self.cell_size, self.cell_size))  # Draw closed nodes in red
+
+        pygame.draw.rect(self.screen, RED,
+                         (remaining_space_left + currentNode.pos[1] * self.cell_size,
+                          currentNode.pos[0] * self.cell_size,
+                          self.cell_size, self.cell_size))  # Draw current node in blue
+
+        pygame.display.update()  # Update the display
+        pygame.time.delay(2)  # Delay to slow down the animation
+
+
 
 def main():
     pygame.init()
