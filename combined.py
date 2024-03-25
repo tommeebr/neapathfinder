@@ -168,6 +168,8 @@ class PathFinderGrid(PathFinder):
             nodePos = (node.pos[0] + newPos[0], node.pos[1] + newPos[1])
             if nodePos[0] < 0 or nodePos[0] >= self.width or nodePos[1] < 0 or nodePos[1] >= self.height:
                 continue  # Node is out of bounds
+            if nodePos[0] >= len(self.structure) or nodePos[1] >= len(self.structure[0]):
+                continue  # Node is not in the grid
             if self.structure[nodePos[0]][nodePos[1]] != 0:
                 continue  # Node is not walkable
             neighbors.append(Node(node, nodePos))
@@ -318,6 +320,7 @@ class TextUtils:
         if current_line != '':
             lines.append(current_line)
         return lines
+
 class Button:
     def __init__(self, text, x, y, width, height, inactive_colour, active_colour):
         self.text = text
@@ -327,6 +330,8 @@ class Button:
         self.height = height
         self.inactive_colour = inactive_colour
         self.active_colour = active_colour
+        self.action = None
+        self.rect = pygame.Rect(x, y, width, height)  # New rect attribute
 
     def draw(self, screen, action=None):
         mouse = pygame.mouse.get_pos()
@@ -347,6 +352,13 @@ class Button:
         text_surf, text_rect = self.text_objects(self.text, small_text)
         text_rect.center = ((self.x+(self.width/2)), (self.y+(self.height/2)))
         screen.blit(text_surf, text_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # If the user clicked on the input_box rect.
+            if self.rect.collidepoint(event.pos):
+                if self.action:
+                    self.action()
 
     @staticmethod
     def text_objects(text, font):
@@ -424,13 +436,20 @@ class InputBox:
             screen.blit(error_text_surface,
                         (self.rect.x, self.rect.y + self.rect.height + 5 + i * self.error_font.get_linesize()))
 
+
+
     def validate(self):
         if self.text.isdigit():
             val = int(self.text)
-            if 5 <= val <= 80:
-                self.error_message = ''
-                return True
-        self.error_message = 'Error: Input should be a number between 5 and 80'
+            if isinstance(self.page, DrawPage):  # Check if the current page is DrawPage
+                if 5 <= val <= 100:
+                    self.error_message = ''
+                    return True
+            else:
+                if 5 <= val <= 80:
+                    self.error_message = ''
+                    return True
+        self.error_message = 'Error: Input should be a number between 5 and 100' if isinstance(self.page, DrawPage) else 'Error: Input should be a number between 5 and 80'
         return False
 
 class CheckBox:
@@ -503,7 +522,7 @@ class Menu:
         page = DrawPage(self.screen)
         page.display_page()
 
-class Page:
+class Page(PathFinder):
     def __init__(self, screen, page_name):
         self.screen = screen
         self.clock = pygame.time.Clock()
@@ -539,14 +558,40 @@ class Page:
         except Exception as e:
             self.error_message = f"An error occurred: {e}"
 
+    def solve(self):
+        if self.grid and self.start and self.end and self.width and self.height:
+            if self.visualise_solver_checkbox.checked:
+                pathfinder = VisualAStar(self.start, self.end, self.width, self.height, self.screen, self.cell_size, self.delay, structure=self.grid)
+            else:
+                pathfinder = PathFinderGrid(self.start, self.end, self.width, self.height, self.grid)
+            pathfinder.path = pathfinder.aStar()
+            self.path = pathfinder.path
+            self.update_grid_with_path()
+        else:
+            self.error_message = 'Error: Grid must be generated before solving'
+
+    def update_grid_with_path(self):
+        if self.path:
+            for cell in self.path:
+                if cell[0] < len(self.grid) and cell[1] < len(self.grid[0]):
+                    self.grid[cell[0]][cell[1]] = 2  # Use a different number to represent the path
+                else:
+                    print(f"Error: Cell {cell} is out of grid bounds.")
+        else:
+            print("Error: No path to update.")
+
+    def display_manhattan_distance(self):
+        manhattan_distance = sum(self.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
+        text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
+        self.screen.blit(text1 , (100, SCREEN_HEIGHT - 40))
+
     def back(self):
         menu = Menu(self.screen)
         menu.game_intro()
 
-class GridPage(Page, PathFinder):
+class GridPage(Page):
     def __init__(self, screen):
         super().__init__(screen, "Grid")
-        self.width = None
         self.generate_button = Button("Generate", 50, 300, 100, 50, GREEN, LIGHT_GRAY)
         self.use_file_button = Button("Use File", 50, 400, 100, 50, GREEN, LIGHT_GRAY)
         self.solve_button = Button("Solve", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
@@ -562,6 +607,7 @@ class GridPage(Page, PathFinder):
         self.error_message = ''
         self.path = []
         self.cell_size = 0
+        self.delay = 30
 
     def display_page(self):
         page = True
@@ -698,33 +744,6 @@ class GridPage(Page, PathFinder):
         else:
             self.error_message = 'Error: Start, end positions and dimensions must be set before generation'
 
-    def solve(self):
-        if self.grid and self.start and self.end and self.width and self.height:
-            if self.visualise_solver_checkbox.checked:
-                pathfinder = VisualAStar(self.start, self.end, self.width, self.height, self.screen, self.cell_size,
-                                         structure=self.grid)
-            else:
-                pathfinder = PathFinderGrid(self.start, self.end, self.width, self.height, self.grid)
-            pathfinder.path = pathfinder.aStar()
-            self.path = pathfinder.path
-            self.update_grid_with_path()
-        else:
-            self.error_message = 'Error: Grid must be generated before solving'
-
-    def update_grid_with_path(self):
-        if self.path:
-            for cell in self.path:
-                if cell[0] < len(self.grid) and cell[1] < len(self.grid[0]):
-                    self.grid[cell[0]][cell[1]] = 2  # Use a different number to represent the path
-                else:
-                    print(f"Error: Cell {cell} is out of grid bounds.")
-        else:
-            print("Error: No path to update.")
-
-    def display_manhattan_distance(self):
-        manhattan_distance = sum(self.manhattanDist(self.path[i], self.path[i + 1]) for i in range(len(self.path) - 1))
-        text1 = UI.fonts['sm'].render(f'Distance:\n{manhattan_distance}', True, CONTRAST)
-        self.screen.blit(text1 , (100, SCREEN_HEIGHT - 40))
 
     def show_help(self):
         print("GridPage show_help method called")
@@ -902,16 +921,84 @@ class DrawPage(Page):
         self.height_input = InputBox(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
         self.solve_button = Button("Solve", 50, 300, 100, 50, GREEN, LIGHT_GRAY)
         self.help_button = Button("Help", 50, 400, 100, 50, BLUE, LIGHT_GRAY)
+        self.clear_button = Button("Clear", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
         self.draw_checkbox = CheckBox(50, 650, 20, 20, False, 'Draw')  # Changed to CheckBox
         self.visualise_solver_checkbox = CheckBox(50, 700, 20, 20, False, 'Visualise A*')
         self.show_grid_checkbox = CheckBox(50, 675, 20, 20, True, 'Grid Lines')
         self.start = None
         self.end = None
         self.grid = []
+        self.prev_pos = None
+        self.mouse_down = False
+        self.drawing = False
+        self.erasing = False
         self.cell_size = 0
+        self.delay = 2
 
-      # Quit pygame when the loop is exited
 
+    def display_page(self):
+        page = True
+        small_text = UI.fonts['sm']
+
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+                self.width_input.handle_event(event)
+                self.height_input.handle_event(event)
+                self.show_grid_checkbox.handle_event(event)
+                self.visualise_solver_checkbox.handle_event(event)
+                self.draw_checkbox.handle_event(event)
+                self.clear_button.handle_event(event)
+
+                if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEMOTION:
+                    self.draw(event)  # Call the draw method here
+                if event.type == pygame.MOUSEBUTTONDOWN and self.grid and not self.draw_checkbox.checked:
+                    self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
+                    x, y = event.pos
+                    grid_x = (x - (1000 - len(self.grid[0]) * self.cell_size)) // self.cell_size
+                    grid_y = y // self.cell_size
+
+                    # Check if the click is within the grid
+                    if 0 <= grid_x < len(self.grid[0]) and 0 <= grid_y < len(self.grid):
+                        if event.button == 1:  # Left mouse button
+                            if self.end is not None and (grid_y, grid_x) == self.end:
+                                continue  # Skip if the start position is the same as the end position
+                            self.start = (grid_y, grid_x)
+                        elif event.button == 3:  # Right mouse button
+                            if self.start is not None and (grid_y, grid_x) == self.start:
+                                continue  # Skip if the end position is the same as the start position
+                            self.end = (grid_y, grid_x)
+
+            self.screen.fill(MAIN)
+
+            self.back_button.draw(self.screen, self.back)
+            self.solve_button.draw(self.screen, self.solveCall)
+            self.help_button.draw(self.screen, self.show_help)
+            self.show_grid_checkbox.draw(self.screen)
+            self.draw_checkbox.draw(self.screen)
+            self.visualise_solver_checkbox.draw(self.screen)
+            self.width_input.draw(self.screen)
+            self.height_input.draw(self.screen)
+
+            self.draw_grid()
+
+            # Draw the start and end positions regardless of whether the draw button is checked
+            if self.start:
+                start_text = small_text.render(f'Start: {self.start}', True, CONTRAST)
+                self.screen.blit(start_text, (10, SCREEN_HEIGHT - 40))
+
+            if self.end:
+                end_text = small_text.render(f'End: {self.end}', True, CONTRAST)
+                self.screen.blit(end_text, (10, SCREEN_HEIGHT - 20))
+
+            if self.draw_checkbox.checked:
+                self.clear_button.draw(self.screen, self.clear_grid)
+
+            pygame.display.update()
+            self.clock.tick(15)
     def generateBlank(self):
         if self.width_input.validate() and self.height_input.validate():
             width = int(self.width_input.text)
@@ -929,44 +1016,108 @@ class DrawPage(Page):
             print("Error: Width and height should be numbers between 5 and 100")
 
     def draw_grid(self):
-        # ! Right hand side column goes off the screen
         if self.grid:
             self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))
             for i, row in enumerate(self.grid):
                 for j, cell in enumerate(row):
                     rect = pygame.Rect(1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size,
                                        i * self.cell_size, self.cell_size, self.cell_size)
-                    if not self.draw_checkbox.checked:
-                        if (i, j) == self.start:
-                            pygame.draw.rect(self.screen, START, rect)
-                        elif (i, j) == self.end:
-                            pygame.draw.rect(self.screen, END, rect)
-                        else:
-                            pygame.draw.rect(self.screen, MAIN if cell == 0 else GREEN, rect)
+
+                    if (i, j) == self.start:
+                        pygame.draw.rect(self.screen, START, rect)
+                    elif (i, j) == self.end:
+                        pygame.draw.rect(self.screen, END, rect)
                     else:
-                        pygame.draw.rect(self.screen, MAIN if cell == 0 else GREEN, rect)
+                        pygame.draw.rect(self.screen, MAIN if cell == 0 else CONTRAST, rect)
+
+                    if cell == 2:
+                        pygame.draw.rect(self.screen, GREEN, rect)
 
             # Draw grid lines
             if self.show_grid_checkbox.checked:
-                for i in range(len(self.grid[0])):  # Adjusted to iterate over the width of the grid
-                    pygame.draw.line(self.screen, CONTRAST,
-                                     (1000 - len(self.grid[0]) * self.cell_size + i * self.cell_size, 0),
-                                     (1000 - len(self.grid[0]) * self.cell_size + i * self.cell_size,
-                                      (len(self.grid) - 1) * self.cell_size), 2)  # Adjusted to stop at the last cell
-                for i in range(len(self.grid)):  # Adjusted to iterate over the height of the grid
-                    pygame.draw.line(self.screen, CONTRAST,
-                                     (1000 - len(self.grid[0]) * self.cell_size, i * self.cell_size),
-                                     (1000, i * self.cell_size), 2)
+                for i in range(len(self.grid)):
+                    for j in range(len(self.grid[0])):
+                        pygame.draw.rect(self.screen, CONTRAST,
+                                         pygame.Rect(1000 - len(self.grid[0]) * self.cell_size + j * self.cell_size,
+                                                     i * self.cell_size, self.cell_size, self.cell_size), 1)
 
-    def solve(self):
-        pass
-    def draw(self):
-        pass
+    # ! Difficulty simulating a dragging motion in pygame
+
+    def draw(self, event):
+        if self.grid and self.draw_checkbox.checked:
+            self.cell_size = 800 // max(len(self.grid[0]), len(self.grid))  # Calculate cell size here
+            x, y = event.pos
+            grid_x = (x - (1000 - len(self.grid[0]) * self.cell_size)) // self.cell_size
+            grid_y = y // self.cell_size
+
+            # Check if the click is within the grid
+            if 0 <= grid_x < len(self.grid[0]) and 0 <= grid_y < len(self.grid):
+                if event.type == pygame.MOUSEBUTTONDOWN:  # Mouse button pressed
+                    if event.button == 1:  # Left mouse button
+                        if not self.drawing:  # If not already drawing, start a new segment
+                            self.grid[grid_y][grid_x] = 1  # Set the current grid cell to represent a wall
+                            self.prev_pos = (grid_x, grid_y)  # Update the previous position
+                            self.drawing = True  # Start drawing
+                        else:  # If already drawing, stop the current segment
+                            self.prev_pos = None  # Reset the previous position
+                            self.drawing = False  # Stop drawing
+                    elif event.button == 3:  # Right mouse button
+                        self.grid[grid_y][grid_x] = 0  # Set the current grid cell to represent an empty cell
+                        self.prev_pos = (grid_x, grid_y)  # Update the previous position
+                        self.erasing = True  # Start erasing
+                elif event.type == pygame.MOUSEMOTION:  # Mouse movement
+                    if self.drawing and self.prev_pos:  # If drawing and previous position exists
+                        # Calculate the difference between the current position and the previous position
+                        dx = grid_x - self.prev_pos[0]
+                        dy = grid_y - self.prev_pos[1]
+
+                        # Calculate the number of cells to fill in between
+                        steps = max(abs(dx), abs(dy)) + 1
+
+                        # Fill in the cells
+                        for i in range(steps):
+                            inter_x = self.prev_pos[0] + i * dx / steps
+                            inter_y = self.prev_pos[1] + i * dy / steps
+                            self.grid[int(inter_y)][int(inter_x)] = 1  # Set the grid cell to represent a wall
+
+                        self.prev_pos = (grid_x, grid_y)  # Update the previous position
+                    elif self.erasing and self.prev_pos:  # If erasing and previous position exists
+                        # Calculate the difference between the current position and the previous position
+                        dx = grid_x - self.prev_pos[0]
+                        dy = grid_y - self.prev_pos[1]
+
+                        # Calculate the number of cells to fill in between
+                        steps = max(abs(dx), abs(dy)) + 1
+
+                        # Fill in the cells
+                        for i in range(steps):
+                            inter_x = self.prev_pos[0] + i * dx / steps
+                            inter_y = self.prev_pos[1] + i * dy / steps
+                            self.grid[int(inter_y)][int(inter_x)] = 0  # Set the grid cell to represent an empty cell
+
+                        self.prev_pos = (grid_x, grid_y)  # Update the previous position
+                elif event.type == pygame.MOUSEBUTTONUP:  # Mouse button released
+                    if event.button == 1:  # Left mouse button
+                        self.drawing = False  # Stop drawing
+                    elif event.button == 3:  # Right mouse button
+                        self.erasing = False  # Stop erasing
+
+    def solveCall(self):
+        self.width = int(self.width_input.text)
+        self.height = int(self.height_input.text)
+        self.grid = [[0 if cell == 2 else cell for cell in row] for row in self.grid]
+        self.solve()
+
+    def display_manhattan_distance(self):
+            pass
 
     def show_help(self):
         print("DrawPage show_help method called")
         help_page = DrawHelpPage(self.screen)
         help_page.display_page()
+
+    def clear_grid(self):
+        self.grid = [[0 for _ in range(len(row))] for row in self.grid]
 
 class GridHelpPage(GridPage):
     def __init__(self, screen):
@@ -991,13 +1142,13 @@ class GridHelpPage(GridPage):
             text_surf2, text_rect2 = self.text_objects('Right click to place End Position', small_text)
             text_rect2.center = (UI.half_width, UI.half_height - 70)
             self.screen.blit(text_surf2, text_rect2)
-            text_surf3, text_rect3 = self.text_objects('The input boxes only accept dimensions 5-100', small_text)
+            text_surf3, text_rect3 = self.text_objects('The input boxes only accept dimensions 5-80', small_text)
             text_rect3.center = (UI.half_width, UI.half_height)
             self.screen.blit(text_surf3, text_rect3)
-            text_surf4, text_rect4 = self.text_objects('Only odd numbers are implemented, but even numbers are accepted', small_text)
+            text_surf4, text_rect4 = self.text_objects('Only odd numbers are implemented for dimensions, but even numbers are accepted', small_text)
             text_rect4.center = (UI.half_width, UI.half_height + 30)
             self.screen.blit(text_surf4, text_rect4)
-            text_surf5, text_rect5 = self.text_objects('Press enter to generate blank grid', small_text)
+            text_surf5, text_rect5 = self.text_objects('Press enter on the input box to generate blank grid', small_text)
             text_rect5.center = (UI.half_width, UI.half_height + 60)
             self.screen.blit(text_surf5, text_rect5)
 
@@ -1045,6 +1196,55 @@ class MazeHelpPage(MazePage):
         grid_page = MazePage(self.screen)
         grid_page.display_page()
 
+class DrawHelpPage(DrawPage):
+    def __init__(self, screen):
+        super().__init__(screen)
+        self.back_button = Button("Back", 50, 50, 100, 50, RED, LIGHT_GRAY)
+
+    def display_page(self):
+        page = True
+
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+            self.screen.fill(MAIN)
+            self.back_button.draw(self.screen, self.back)
+            small_text = UI.fonts['sm']
+            text_surf1, text_rect1 = self.text_objects('Left click to place Start Position', small_text)
+            text_rect1.center = (UI.half_width, UI.half_height - 140)
+            self.screen.blit(text_surf1, text_rect1)
+            text_surf2, text_rect2 = self.text_objects('Right click to place End Position', small_text)
+            text_rect2.center = (UI.half_width, UI.half_height - 110)
+            self.screen.blit(text_surf2, text_rect2)
+            text_surf3, text_rect3 = self.text_objects('The input boxes only accept dimensions 5-100', small_text)
+            text_rect3.center = (UI.half_width, UI.half_height - 60)
+            self.screen.blit(text_surf3, text_rect3)
+            text_surf4, text_rect4 = self.text_objects('Only odd numbers are implemented for dimensions, but even numbers are accepted', small_text)
+            text_rect4.center = (UI.half_width, UI.half_height - 30)
+            self.screen.blit(text_surf4, text_rect4)
+            text_surf5, text_rect5 = self.text_objects('Press enter on the input box to generate blank grid', small_text)
+            text_rect5.center = (UI.half_width, UI.half_height)
+            self.screen.blit(text_surf5, text_rect5)
+            text_surf5, text_rect5 = self.text_objects('Click the draw checkbox to draw',small_text)
+            text_rect5.center = (UI.half_width, UI.half_height + 50)
+            self.screen.blit(text_surf5, text_rect5)
+            text_surf5, text_rect5 = self.text_objects('Left click to draw, right click to erase', small_text)
+            text_rect5.center = (UI.half_width, UI.half_height + 80)
+            self.screen.blit(text_surf5, text_rect5)
+            text_surf5, text_rect5 = self.text_objects('Press Clear to empty the grid', small_text)
+            text_rect5.center = (UI.half_width, UI.half_height + 110)
+            self.screen.blit(text_surf5, text_rect5)
+            pygame.display.update()
+            self.clock.tick(15)
+
+    def back(self):
+        print("Back method called")
+        grid_page = GridPage(self.screen)
+        grid_page.display_page()
+
 class VisualGeneratorGrid(GeneratorGrid):
     def __init__(self, start, end, width, height, screen):
         super().__init__(start, end, width, height)
@@ -1087,10 +1287,12 @@ class VisualGeneratorGrid(GeneratorGrid):
         pygame.time.delay(40)
 
 class VisualAStar(PathFinderGrid):
-    def __init__(self, start, end, width, height, screen, cell_size, structure=None):
+    def __init__(self, start, end, width, height, screen, cell_size, delay, structure=None):
         super().__init__(start, end, width, height, structure)
         self.screen = screen
         self.cell_size = cell_size
+        self.delay = delay
+
 
     def aStar(self):
         startNode = Node(None, self.start)
@@ -1102,9 +1304,13 @@ class VisualAStar(PathFinderGrid):
         count = 0  # Counter for tie-breaking
         heapq.heappush(openList, (startNode.f, count, startNode))  # Add the start node
 
+
         while len(openList) > 0:
             currentNode = heapq.heappop(openList)[2]  # Node with the lowest f values
             closedList.append(currentNode)
+
+            pygame.draw.rect(self.screen, END, pygame.Rect(1000 - self.width * self.cell_size + self.end[0] * self.cell_size, self.end[1] * self.cell_size, self.cell_size, self.cell_size))
+            pygame.display.update()
 
             if currentNode == endNode:
                 # Found the goal
@@ -1178,8 +1384,7 @@ class VisualAStar(PathFinderGrid):
                           self.cell_size, self.cell_size))  # Draw current node in blue
 
         pygame.display.update()  # Update the display
-        pygame.time.delay(30)  # Delay to slow down the animation
-
+        pygame.time.delay(self.delay)
 
 
 
