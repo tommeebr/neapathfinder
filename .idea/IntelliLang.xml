@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="LanguageInjectionConfiguration">
+    <injection language="SQLite" injector-id="sql">
+      <display-name>SQLite</display-name>
+      <single-file value="false" />
+    </injection>
+  </component>
+</project>
