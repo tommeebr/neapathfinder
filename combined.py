@@ -1,10 +1,9 @@
 import heapq
-import math
-import random
+import sqlite3
+import re
+import hashlib
 import numpy as np
 import pygame
-from pygame.locals import *
-import sys
 import tkinter as tk
 from tkinter import filedialog
 
@@ -355,10 +354,10 @@ class Button:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # If the user clicked on the input_box rect.
             if self.rect.collidepoint(event.pos):
-                if self.action:
-                    self.action()
+                print('Button action called')
+                return True
+        return False
 
     @staticmethod
     def text_objects(text, font):
@@ -384,12 +383,61 @@ class Slider:
             if pygame.mouse.get_pos()[0] in range(self.x, self.x + self.width) and abs(pygame.mouse.get_pos()[1] - self.y) < 10:
                 self.val = round((pygame.mouse.get_pos()[0] - self.x) * (self.max_val - self.min_val) / self.width + self.min_val)
                 self.slider_pos = (pygame.mouse.get_pos()[0], self.y)
+                
+class LoginButton(Button):
+    def __init__(self, x, y, width, height):
+        super().__init__('Login', x, y, width, height, GREEN, LIGHT_GRAY)
 
+
+    def draw(self, screen, action=None):
+        font = pygame.font.Font(None, 32)
+        text_surface = font.render(self.text, True, GREEN)
+        screen.blit(text_surface, (self.rect.x + 5, self.rect.y + 5))
+
+        mouse = pygame.mouse.get_pos()
+        click = pygame.mouse.get_pressed()
+
+        if self.rect.collidepoint(mouse):
+            if click[0] == 1 and action is not None:
+                action()
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                return 'LoginPage'
+        return None
+
+class SignUpButton(Button):
+    def __init__(self, x, y, width, height):
+        super().__init__("Don't have an account? Sign up", x, y, width, height, GREEN, LIGHT_GRAY)
+
+    def draw(self, screen, action=None):
+        font = pygame.font.Font(None, 22)
+        text_surface = font.render(self.text, True, GREEN)
+
+        # Calculate the center of the button
+        center = (self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2)
+        # Adjust the position of the text surface to be centered within the button
+        text_rect = text_surface.get_rect(center=center)
+
+        screen.blit(text_surface, text_rect)
+
+        mouse = pygame.mouse.get_pos()
+        click = pygame.mouse.get_pressed()
+
+        if self.rect.collidepoint(mouse):
+            if click[0] == 1 and action is not None:
+                action()
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                return 'SignUpPage'
 class InputBox:
     def __init__(self, x, y, w, h, page, placeholder=''):
         self.rect = pygame.Rect(x, y, w, h)
         self.colour_inactive = LIGHT_GRAY
-        self.colour_active = GREEN  # Define the active colour as green
+        self.colour_active = GREEN
         self.colour = self.colour_inactive
         self.text = ''
         self.placeholder = placeholder
@@ -402,31 +450,29 @@ class InputBox:
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # If the user clicked on the input_box rect.
             if self.rect.collidepoint(event.pos):
-                # Toggle the active variable.
                 self.active = not self.active
             else:
                 self.active = False
-            # Change the current colour of the input box.
             self.colour = self.colour_active if self.active else self.colour_inactive
         if event.type == pygame.KEYDOWN:
             if self.active:
                 if event.key == pygame.K_RETURN:
-                    self.page.generateBlank()  # Generate the grid when enter is pressed
+                    print(self.text)
                 elif event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
-                else:
-                    if event.unicode.isdigit():
-                        self.text += event.unicode
-                self.txt_surface = self.font.render(self.text, True, self.colour)
 
     def draw(self, screen):
         if self.text == '':
             self.txt_surface = self.font.render(self.placeholder, True, LIGHT_GRAY)
         else:
             self.txt_surface = self.font.render(self.text, True, CONTRAST)
-        screen.blit(self.txt_surface, (self.rect.x+5, self.rect.y+5))
+
+        # Calculate the center of the input box
+        center = (self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2)
+        # Adjust the position of the text surface to be centered within the input box
+        text_rect = self.txt_surface.get_rect(center=center)
+        screen.blit(self.txt_surface, text_rect)
         pygame.draw.rect(screen, self.colour, self.rect, 2)
 
         # Wrap the error message to fit within 200px
@@ -436,7 +482,28 @@ class InputBox:
             screen.blit(error_text_surface,
                         (self.rect.x, self.rect.y + self.rect.height + 5 + i * self.error_font.get_linesize()))
 
-
+class InputBoxInt(InputBox):
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.active = not self.active
+            else:
+                self.active = False
+            self.colour = self.colour_active if self.active else self.colour_inactive
+        if event.type == pygame.KEYDOWN:
+            if self.active:
+                if event.key == pygame.K_RETURN:
+                    if self.text.isdigit():
+                        print(self.text)
+                        self.page.generate()  # Call the generate method of the page
+                        self.text = ''
+                    else:
+                        print("Error: Input should be an integer")
+                elif event.key == pygame.K_BACKSPACE:
+                    self.text = self.text[:-1]
+                elif event.unicode.isdigit():  # Only add the character to the text if it's a digit
+                    self.text += event.unicode
+                self.txt_surface = self.font.render(self.text, True, self.colour)
 
     def validate(self):
         if self.text.isdigit():
@@ -451,6 +518,26 @@ class InputBox:
                     return True
         self.error_message = 'Error: Input should be a number between 5 and 100' if isinstance(self.page, DrawPage) else 'Error: Input should be a number between 5 and 80'
         return False
+
+class InputBoxStr(InputBox):
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.active = not self.active
+            else:
+                self.active = False
+            self.colour = self.colour_active if self.active else self.colour_inactive
+        if event.type == pygame.KEYDOWN:
+            if self.active:
+                if event.key == pygame.K_RETURN:
+                    print(self.text)
+                    self.text = ''
+                elif event.key == pygame.K_BACKSPACE:
+                    self.text = self.text[:-1]
+                else:
+                    self.text += event.unicode
+                self.txt_surface = self.font.render(self.text, True, self.colour)
+
 
 class CheckBox:
     def __init__(self, x, y, width, height, checked=True, label=''):
@@ -477,8 +564,8 @@ class Menu:
         self.clock = pygame.time.Clock()
         self.maze_button = Button("Maze", UI.half_width - 50, UI.half_height, 100, 50, GREEN, LIGHT_GRAY)
         self.grid_button = Button("Grid", UI.half_width - 50, UI.half_height - 75, 100, 50, GREEN, LIGHT_GRAY)
-        self.draw_button = Button("Draw", UI.half_width - 50, UI.half_height + 75, 100, 50, GREEN,
-                                  LIGHT_GRAY)  # New button
+        self.draw_button = Button("Draw", UI.half_width - 50, UI.half_height + 75, 100, 50, GREEN, LIGHT_GRAY)
+        self.login_button = LoginButton(850, 20, 100, 50)
 
     def game_intro(self):
         intro = True
@@ -488,6 +575,7 @@ class Menu:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     quit()
+
 
             self.screen.fill(MAIN)
             large_text = UI.fonts['xl']
@@ -501,7 +589,8 @@ class Menu:
 
             self.maze_button.draw(self.screen, self.maze_page)
             self.grid_button.draw(self.screen, self.grid_page)
-            self.draw_button.draw(self.screen, self.draw_page)  # New button
+            self.draw_button.draw(self.screen, self.draw_page)
+            self.login_button.draw(self.screen, self.login_page)
 
             pygame.display.update()
             self.clock.tick(15)
@@ -520,6 +609,10 @@ class Menu:
 
     def draw_page(self):
         page = DrawPage(self.screen)
+        page.display_page()
+
+    def login_page(self):
+        page = LoginPage(self.screen)
         page.display_page()
 
 class Page(PathFinder):
@@ -589,6 +682,9 @@ class Page(PathFinder):
         menu = Menu(self.screen)
         menu.game_intro()
 
+    def hash_password(password):
+        return hashlib.sha256(password.encode()).hexdigest()
+
 class GridPage(Page):
     def __init__(self, screen):
         super().__init__(screen, "Grid")
@@ -599,8 +695,8 @@ class GridPage(Page):
         self.show_grid_checkbox = CheckBox(50, 675, 20, 20, True, 'Grid Lines')
         self.visualise_generation_checkbox = CheckBox(50, 700, 20, 20, False, 'Visualise DFS')
         self.visualise_solver_checkbox = CheckBox(50, 725, 20, 20, False, 'Visualise A*')
-        self.width_input = InputBox(50, 150, 100, 32, self, 'Width')  # Pass self as the page argument
-        self.height_input = InputBox(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
+        self.width_input = InputBoxInt(50, 150, 100, 32, self, 'Width')  # Pass self as the page argument
+        self.height_input = InputBoxInt(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
         self.grid = []
         self.start = None
         self.end = None
@@ -874,7 +970,7 @@ class MazePage(Page):
                     if self.show_grid_checkbox.checked:  # Draw the grid lines
                         pygame.draw.rect(self.screen, CONTRAST, pygame.Rect(x, y, self.cell_size, self.cell_size), 1)
 
-    def draw_arrow(self, start, end, color, direction):
+    def draw_arrow(self, start, end, colour, direction):
         offset = self.cell_size // 4  # Adjust this value to change the size of the arrow
         if direction == 'right':
             points = [(start[0] + offset, start[1] + offset), (end[0] - offset, (start[1] + end[1]) / 2),
@@ -888,7 +984,7 @@ class MazePage(Page):
         elif direction == 'down':
             points = [(start[0] + offset, start[1] + offset), ((start[0] + end[0]) / 2, end[1] - offset),
                       (end[0] - offset, start[1] + offset)]
-        pygame.draw.polygon(self.screen, color, points)
+        pygame.draw.polygon(self.screen, colour, points)
 
     def solve(self):
         if self.grid and self.start and self.end:
@@ -917,8 +1013,8 @@ class MazePage(Page):
 class DrawPage(Page):
     def __init__(self, screen):
         super().__init__(screen, "Draw")
-        self.width_input = InputBox(50, 150, 100, 32, self, 'Width')  # Pass self as the page argument
-        self.height_input = InputBox(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
+        self.width_input = InputBoxInt(50, 150, 100, 32, self, 'Width')  # Pass self as the page argument
+        self.height_input = InputBoxInt(50, 225, 100, 32, self, 'Height')  # Pass self as the page argument
         self.solve_button = Button("Solve", 50, 300, 100, 50, GREEN, LIGHT_GRAY)
         self.help_button = Button("Help", 50, 400, 100, 50, BLUE, LIGHT_GRAY)
         self.clear_button = Button("Clear", 50, 500, 100, 50, GREEN, LIGHT_GRAY)
@@ -1119,6 +1215,187 @@ class DrawPage(Page):
     def clear_grid(self):
         self.grid = [[0 for _ in range(len(row))] for row in self.grid]
 
+class LoginPage(Page):
+    def __init__(self, screen):
+        super().__init__(screen, "Login Page")
+        screen_width, screen_height = screen.get_size()
+        inputbox_width, inputbox_height = 300, 32
+        button_width, button_height = 100, 50
+        self.username_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height * 2.5, inputbox_width, inputbox_height, self, placeholder="Username or Email")
+        self.password_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height, inputbox_width, inputbox_height, self, placeholder="Password")
+        self.login_button = Button("Login", (screen_width - inputbox_width) // 2, screen_height // 2 + button_height , inputbox_width, button_height, GREEN, LIGHT_GRAY)
+        self.signup_button = SignUpButton((screen_width - inputbox_width) // 2,screen_height // 2 + button_height * 2.5, inputbox_width, button_height)
+        self.title_font = pygame.font.Font(None, 64)
+        self.title_surface = self.title_font.render('LOGIN', True, CONTRAST)
+        self.database = sqlite3.connect('users.db')
+
+    def display_page(self):
+        page = True
+
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+                self.username_input.handle_event(event)
+                self.password_input.handle_event(event)
+                self.login_button.handle_event(event)
+                self.signup_button.handle_event(event)
+
+                signup_page = self.signup_button.handle_event(event)
+                if signup_page == 'SignUpPage':
+                    signup_page = SignUpPage(self.screen)  # Assuming you have a SignupPage class
+                    signup_page.display_page()
+                    page = False
+
+
+            self.screen.fill(MAIN)
+
+            # Calculate the center of the screen for the title
+            title_center = (self.screen.get_size()[0] // 2, self.username_input.rect.y // 2)
+            # Adjust the position of the title surface to be centered above the input boxes
+            title_rect = self.title_surface.get_rect(center=title_center)
+            self.screen.blit(self.title_surface, title_rect)
+
+            self.back_button.draw(self.screen, self.back)
+            self.username_input.draw(self.screen)
+            self.password_input.draw(self.screen)
+            self.login_button.draw(self.screen)
+            self.signup_button.draw(self.screen)
+
+            pygame.display.update()
+            self.clock.tick(15)
+    def draw(self, screen):
+        self.username_input.draw(screen)
+        self.password_input.draw(screen)
+        self.login_button.draw(screen)
+        self.signup_button.draw(screen)
+
+    def handle_event(self, event):
+        self.username_input.handle_event(event)
+        self.password_input.handle_event(event)
+        if self.login_button.handle_event(event):
+            username = self.username_input.text
+            password = self.password_input.text
+        if self.signup_button.handle_event(event):
+            return 'SignupPage'
+        return None
+
+
+
+class SignUpPage(Page):
+    def __init__(self, screen):
+        super().__init__(screen, "Signup Page")
+        screen_width, screen_height = screen.get_size()
+        inputbox_width, inputbox_height = 300, 32
+        button_width, button_height = 100, 50
+        self.email_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height * 3 , inputbox_width, inputbox_height, self, placeholder="Username")
+        self.username_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height * 1.5, inputbox_width, inputbox_height, self, placeholder="Email")
+        self.password_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 , inputbox_width, inputbox_height, self, placeholder="Password")
+        self.confirm_password_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 + inputbox_height * 1.5, inputbox_width, inputbox_height, self, placeholder="Confirm Password")
+        self.signup_button = Button("Sign Up", (screen_width - inputbox_width) // 2, screen_height // 2 + button_height * 2.5, inputbox_width, button_height, GREEN, LIGHT_GRAY)
+        self.back_button = Button("Back", 50, 50, 100, 50, RED, LIGHT_GRAY)
+        self.title_font = pygame.font.Font(None, 64)
+        self.title_surface = self.title_font.render('SIGN UP', True, CONTRAST)
+        self.database = sqlite3.connect('user.db')
+
+    def draw(self, screen):
+        self.email_input.draw(screen)
+        self.username_input.draw(screen)
+        self.password_input.draw(screen)
+        self.confirm_password_input.draw(screen)
+        self.signup_button.draw(screen)
+        self.back_button.draw(screen)
+
+    def display_page(self):
+        page = True
+        while page:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+                self.email_input.handle_event(event)
+                self.username_input.handle_event(event)
+                self.password_input.handle_event(event)
+                self.confirm_password_input.handle_event(event)
+
+            self.screen.fill(MAIN)
+
+            # Calculate the center of the screen for the title
+            title_center = (self.screen.get_size()[0] // 2, self.username_input.rect.y // 2)
+            # Adjust the position of the title surface to be centered above the input boxes
+            title_rect = self.title_surface.get_rect(center=title_center)
+            self.screen.blit(self.title_surface, title_rect)
+
+            self.email_input.draw(self.screen)
+            self.username_input.draw(self.screen)
+            self.password_input.draw(self.screen)
+            self.confirm_password_input.draw(self.screen)
+            self.signup_button.draw(self.screen, self.confirm)
+            self.back_button.draw(self.screen, self.back)
+
+            pygame.display.flip()
+            self.clock.tick(15)
+
+    def handle_event(self, event):
+        self.email_input.handle_event(event)
+        self.username_input.handle_event(event)
+        self.password_input.handle_event(event)
+        self.confirm_password_input.handle_event(event)
+        if self.signup_button.handle_event(event):
+            if self.confirm():
+                cursor = self.database.cursor()
+                cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+                               (self.username_input.text, self.email_input.text,
+                                self.hash_password(self.password_input.text)))
+                self.database.commit()
+                print('User signed up successfully')
+            else:
+                print('Failed to sign up')
+        if self.back_button.handle_event(event):
+            return 'LoginPage'
+        return None
+
+    def validate_inputs(self):
+        if self.username_input.text == '' and self.email_input.text == '' and self.password_input.text == '' and self.confirm_password_input.text == '':
+            self.username_input.error_message = 'Error: Username is required'
+            self.email_input.error_message = 'Error: Email is required'
+            self.password_input.error_message = 'Error: Password is required'
+            self.confirm_password_input.error_message = 'Error: Confirm password is required'
+            return False
+
+        # Username validation
+        if len(self.username_input.text) > 16:
+            self.username_input.error_message = 'Error: Username must be max 16 characters'
+            return False
+
+        # Email validation
+        email_regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        if not re.fullmatch(email_regex, self.email_input.text):
+            self.email_input.error_message = 'Error: Invalid email'
+            return False
+
+        # Password validation
+        if not re.search(r'\d', self.password_input.text) or not re.search(r'\W', self.password_input.text):
+            self.password_input.error_message = 'Error: Password must contain a number and a special character'
+            return False
+
+        # Confirm password validation
+        if self.password_input.text != self.confirm_password_input.text:
+            self.confirm_password_input.error_message = 'Error: Passwords do not match'
+            return False
+
+        return True
+
+    def confirm(self):
+        print(self.validate_inputs())
+        return self.validate_inputs()
+
+    def back(self):
+        login_page = LoginPage(self.screen)
+        login_page.display_page()
 class GridHelpPage(GridPage):
     def __init__(self, screen):
         super().__init__(screen)
