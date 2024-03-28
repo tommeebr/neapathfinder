@@ -154,6 +154,20 @@ class PathFinder:
         except Exception as e:
             print(f"An error occurred: {e}")
 
+    def saveFile(self, filePath):
+        try:
+            with open(filePath, 'w') as file:
+                # Write the start and end positions
+                file.write(f"{self.start[0]},{self.start[1]}\n")
+                file.write(f"{self.end[0]},{self.end[1]}\n")
+
+                # Write the grid
+                for row in self.structure:
+                    file.write(','.join(str(cell) for cell in row))
+                    file.write('\n')
+        except Exception as e:
+            print("An error occurred while saving the file: ", e)
+
     def generateStructure(self):
         raise NotImplementedError("This method should be overridden in a subclass")
 
@@ -402,6 +416,7 @@ class LoginButton(Button):
 
         if self.rect.collidepoint(mouse):
             if click[0] == 1 and action is not None:
+                pygame.time.delay(100)
                 action()
 
     def handle_event(self, event):
@@ -430,6 +445,7 @@ class SignUpButton(Button):
 
         if self.rect.collidepoint(mouse):
             if click[0] == 1 and action is not None:
+                pygame.time.delay(100)
                 action()
 
     def handle_event(self, event):
@@ -491,19 +507,21 @@ class InputBoxInt(InputBox):
         if event.type == pygame.MOUSEBUTTONDOWN:
             # If the user clicked on the input_box rect.
             if self.rect.collidepoint(event.pos):
-                self.active = True
+                # Toggle the active variable.
+                self.active = not self.active
             else:
                 self.active = False
+            # Change the current colour of the input box.
             self.colour = self.colour_active if self.active else self.colour_inactive
         if event.type == pygame.KEYDOWN:
             if self.active:
                 if event.key == pygame.K_RETURN:
-                    print(self.text)
-                    self.text = ''
+                    self.page.generateBlank()  # Generate the grid when enter is pressed
                 elif event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
                 else:
-                    self.text += event.unicode
+                    if event.unicode.isdigit():
+                        self.text += event.unicode
                 self.txt_surface = self.font.render(self.text, True, self.colour)
 
 
@@ -537,10 +555,7 @@ class InputBoxStr(InputBox):
             self.colour = self.colour_active if self.active else self.colour_inactive
         if event.type == pygame.KEYDOWN:
             if self.active:
-                if event.key == pygame.K_RETURN:
-                    print(self.text)
-                    self.text = ''
-                elif event.key == pygame.K_BACKSPACE:
+                if event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
                 else:
                     self.text += event.unicode
@@ -570,7 +585,16 @@ class CheckBox:
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.rect.collidepoint(event.pos):
-                self.checked = not self.checkedd
+                self.checked = not self.checked
+
+class CurrentUser:
+    _instance = None
+    username = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(CurrentUser, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
 
 class Menu:
     def __init__(self, screen):
@@ -581,7 +605,7 @@ class Menu:
         self.draw_button = Button("Draw", UI.half_width - 50, UI.half_height + 75, 100, 50, GREEN, LIGHT_GRAY)
         self.login_button = LoginButton(850, 20, 100, 50)
 
-    def game_intro(self):
+    def display_page(self):
         intro = True
 
         while intro:
@@ -605,6 +629,9 @@ class Menu:
             self.grid_button.draw(self.screen, self.grid_page)
             self.draw_button.draw(self.screen, self.draw_page)
             self.login_button.draw(self.screen, self.login_page)
+
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
 
             pygame.display.update()
             self.clock.tick(15)
@@ -635,6 +662,7 @@ class Page(PathFinder):
         self.clock = pygame.time.Clock()
         self.page_name = page_name
         self.back_button = Button("Back", 50, 50, 100, 50, RED, LIGHT_GRAY)
+        self.error_message = ''
 
     def display_page(self):
         raise NotImplementedError("This method should be overridden in a subclass")
@@ -694,7 +722,7 @@ class Page(PathFinder):
 
     def back(self):
         menu = Menu(self.screen)
-        menu.game_intro()
+        menu.display_page()
 
     def hash_password(password):
         return hashlib.sha256(password.encode()).hexdigest()
@@ -714,7 +742,6 @@ class GridPage(Page):
         self.grid = []
         self.start = None
         self.end = None
-        self.error_message = ''
         self.path = []
         self.cell_size = 0
         self.delay = 30
@@ -785,6 +812,9 @@ class GridPage(Page):
 
             if self.path:
                 self.display_manhattan_distance()
+
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
 
             pygame.display.update()
             self.clock.tick(15)
@@ -870,7 +900,6 @@ class MazePage(Page):
         self.grid = []
         self.start = None
         self.end = None
-        self.error_message = ''
         self.path = []
         self.cell_size = 0
         self.pathfinder = None
@@ -927,6 +956,9 @@ class MazePage(Page):
 
             if self.path:
                 self.display_manhattan_distance()
+
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
 
             pygame.display.update()
             self.clock.tick(15)
@@ -1107,6 +1139,9 @@ class DrawPage(Page):
             if self.draw_checkbox.checked:
                 self.clear_button.draw(self.screen, self.clear_grid)
 
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
+
             pygame.display.update()
             self.clock.tick(15)
     def generateBlank(self):
@@ -1232,17 +1267,17 @@ class DrawPage(Page):
 class LoginPage(Page):
     def __init__(self, screen):
         super().__init__(screen, "Login Page")
-        screen_width, screen_height = screen.get_size()
-        inputbox_width, inputbox_height = 300, 32
+        self.screen_width, self.screen_height = screen.get_size()
+        self.inputbox_width, self.inputbox_height = 300, 32
         button_width, button_height = 100, 50
-        self.username_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height * 2.5, inputbox_width, inputbox_height, self, placeholder="Username or Email")
-        self.password_input = InputBoxStr((screen_width - inputbox_width) // 2, screen_height // 2 - inputbox_height, inputbox_width, inputbox_height, self, placeholder="Password")
-        self.login_button = Button("Login", (screen_width - inputbox_width) // 2, screen_height // 2 + button_height , inputbox_width, button_height, GREEN, LIGHT_GRAY)
-        self.signup_button = SignUpButton((screen_width - inputbox_width) // 2,screen_height // 2 + button_height * 2.5, inputbox_width, button_height)
+        self.username_input = InputBoxStr((self.screen_width - self.inputbox_width) // 2, self.screen_height // 2 - self.inputbox_height * 2.5, self.inputbox_width, self.inputbox_height, self, placeholder="Username or Email")
+        self.password_input = InputBoxStr((self.screen_width - self.inputbox_width) // 2, self.screen_height // 2 - self.inputbox_height, self.inputbox_width, self.inputbox_height, self, placeholder="Password")
+        self.login_button = Button("Login", (self.screen_width - self.inputbox_width) // 2, self.screen_height // 2 + button_height , self.inputbox_width, button_height, GREEN, LIGHT_GRAY)
+        self.signup_button = SignUpButton((self.screen_width - self.inputbox_width) // 2,self.screen_height // 2 + button_height * 2.5, self.inputbox_width, button_height)
         self.title_font = pygame.font.Font(None, 64)
         self.title_surface = self.title_font.render('LOGIN', True, CONTRAST)
 
-
+    # TODO: Make the password box use asterisk characters
     def display_page(self):
         page = True
 
@@ -1263,8 +1298,14 @@ class LoginPage(Page):
                     signup_page.display_page()
                     page = False
 
-
+                if self.login_button.handle_event(event):
+                    self.login()
             self.screen.fill(MAIN)
+
+            if self.error_message:
+                error_text = UI.fonts['sm'].render(self.error_message, True, RED)
+                error_rect = error_text.get_rect(center=(self.screen_width // 2, self.screen_height // 2 - self.inputbox_height * 3.5))
+                self.screen.blit(error_text, error_rect)
 
             # Calculate the center of the screen for the title
             title_center = (self.screen.get_size()[0] // 2, self.username_input.rect.y // 2)
@@ -1280,6 +1321,7 @@ class LoginPage(Page):
 
             pygame.display.update()
             self.clock.tick(15)
+
     def draw(self, screen):
         self.username_input.draw(screen)
         self.password_input.draw(screen)
@@ -1296,7 +1338,34 @@ class LoginPage(Page):
             return 'SignupPage'
         return None
 
+    def login(self):
+        username_or_email = self.username_input.text
+        password = self.password_input.text
 
+        # Connect to the database
+        conn = sqlite3.connect('pathfinder.sqlite')
+        cursor = conn.cursor()
+
+        # Retrieve the user record
+        cursor.execute("SELECT * FROM users WHERE username = ? OR email = ?", (username_or_email, username_or_email))
+        user = cursor.fetchone()
+
+        # If a user record was found
+        if user is not None:
+            db_password = user[3]
+            # Check if the entered password matches the password in the database
+            if Page.hash_password(password) == db_password:  # Call hash_password as a static method
+                print("Login successful")
+                CurrentUser().username = username_or_email
+                # Navigate back to the Menu page only if login is successful
+                menu = Menu(self.screen)
+                menu.display_page()
+            else:
+                self.error_message = 'Email/Username or Password incorrect'
+        else:
+            self.error_message = 'Email/Username or Password incorrect'
+
+        conn.close()
 
 class SignUpPage(Page):
     def __init__(self, screen):
@@ -1315,7 +1384,7 @@ class SignUpPage(Page):
         self.database = sqlite3.connect('pathfinder.sqlite')
         self.cursor = self.database.cursor()
         self.validator = UserValidator('pathfinder.sqlite')
-        self.error_message = ''
+
 
 
     def display_page(self):
@@ -1393,6 +1462,10 @@ class SignUpPage(Page):
         login_page = LoginPage(self.screen)
         login_page.display_page()
 
+    def back(self):
+        login = LoginPage(self.screen)
+        login.display_page()
+
 class UserValidator:
     def __init__(self, database_name):
         self.conn = sqlite3.connect(database_name)
@@ -1452,6 +1525,9 @@ class GridHelpPage(GridPage):
             text_rect5.center = (UI.half_width, UI.half_height + 60)
             self.screen.blit(text_surf5, text_rect5)
 
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
+
             pygame.display.update()
             self.clock.tick(15)
 
@@ -1487,6 +1563,8 @@ class MazeHelpPage(MazePage):
             text_rect3.center = (UI.half_width, UI.half_height)
             self.screen.blit(text_surf3, text_rect3)
 
+            username_text = UI.fonts['m'].render(CurrentUser().username, True, CONTRAST)
+            self.screen.blit(username_text, (5, 5))
 
             pygame.display.update()
             self.clock.tick(15)
@@ -1542,8 +1620,8 @@ class DrawHelpPage(DrawPage):
 
     def back(self):
         print("Back method called")
-        grid_page = GridPage(self.screen)
-        grid_page.display_page()
+        draw_page = DrawPage(self.screen)
+        draw_page.display_page()
 
 class VisualGeneratorGrid(GeneratorGrid):
     def __init__(self, start, end, width, height, screen):
@@ -1701,7 +1779,7 @@ def main():
     UI.init(app)
 
     menu = Menu(screen)
-    menu.game_intro()
+    menu.display_page()
 
 
 if __name__ == "__main__":
